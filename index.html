@@ -1,0 +1,1077 @@
+<!doctype html>
+<!--
+  GESTIONE FLOTTA — versione 2.3
+  Pianificazione giri e autisti su ore STIMATE, controlli Reg. CE 561/2006.
+
+  CHANGELOG
+  2.3  Messaggi per l'autista: ogni giro ha i suoi modelli (Messaggio 1, 2, 3…), separati dalle giornate.
+       Dalla giornata: scegli il messaggio, l'app mette nome autista, data, rimorchio (uno per viaggio),
+       orari modificabili e note libere; anteprima correggibile, invio WhatsApp o copia.
+       Solo testo: l'invio non cambia niente nel calendario e gli orari non entrano nei calcoli.
+       Scritta "inviato oggi alle…" come promemoria. Dati v4 (campi nuovi vuoti, nessuna perdita).
+  2.2  Ore con pulsanti: guida 9h / 10h, impegno 13h / 15h. Tutto facoltativo:
+       guida non indicata = giornata gialla e 9h nei totali; impegno non indicato = giornata normale.
+       Tolto il margine di sicurezza (inutile con i pulsanti). I dati vecchi vengono
+       convertiti al pulsante più prudente (es. guida 8h30 -> 9h, impegno 14h -> 15h).
+  2.1  Tolto il controllo della pausa da 45'. Impegno obbligatorio per ogni giornata
+       (e mai inferiore alla guida). Anteprima delle ore mentre scrivi (8.30 = 8h18!).
+       Cambio GIRO sulla singola giornata o su tutti i giorni rimanenti.
+       Casella "giorni successivi" ora già spuntata. Backup segnato solo se riuscito.
+       Backup copiato come testo e ripristino incollando. Pulsante Installa.
+       Riepilogo problemi della settimana. Elenco giornate sotto la barra.
+       Salvataggio: all'avvio legge sempre la copia più recente.
+       Migrazione automatica dei dati e backup della versione 1.3.
+       Numeri WhatsApp con +39 / 0039 letti correttamente.
+  2.0  Nuovo motore regole a giornate.
+-->
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B6E4F">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Gestione Flotta</title>
+<link rel="manifest" id="mf">
+<link rel="icon" id="ico">
+<link rel="apple-touch-icon" id="aico">
+<style>
+:root{
+  --bg:#EEF1EE; --card:#FFFFFF; --card2:#F5F7F5; --line:#D6DDD8; --text:#17201B; --muted:#5E6B63;
+  --acc:#0B6E4F; --acc2:#08573E; --acct:#FFFFFF;
+  --ok:#1F7A4C; --okbg:#DDF1E5; --okt:#145534;
+  --warn:#A86A06; --warnbg:#FCEFCF; --warnt:#6B4404;
+  --err:#B3261E; --errbg:#F9DEDC; --errt:#7A1712;
+  --vuoto:#E3E8E4;
+  --r:12px;
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#101513; --card:#1A211D; --card2:#212A25; --line:#33403A; --text:#E8EEEA; --muted:#9AA8A0;
+    --acc:#2FB383; --acc2:#5CCBA0; --acct:#06281C;
+    --ok:#4CC38A; --okbg:rgba(76,195,138,.16); --okt:#9BE5BF;
+    --warn:#F0B13A; --warnbg:rgba(240,177,58,.16); --warnt:#F7D38A;
+    --err:#F2726B; --errbg:rgba(242,114,107,.16); --errt:#FFB4AE;
+    --vuoto:#26302B;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.45 var(--font);-webkit-text-size-adjust:100%;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+header.top{position:sticky;top:0;z-index:5;background:var(--acc);color:var(--acct);padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;align-items:center;gap:10px}
+header.top h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.2px;flex:1}
+header.top .ver{font-size:12px;opacity:.8}
+main{max-width:760px;margin:0 auto;padding:14px 16px}
+h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:18px 2px 8px;font-weight:700}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:8px}
+.grow{flex:1;min-width:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.btn{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:10px 14px;font:600 15px var(--font);cursor:pointer;min-height:44px}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--acct)}
+.btn.dang{background:var(--errbg);border-color:transparent;color:var(--errt)}
+.btn.sm{padding:6px 10px;min-height:36px;font-size:14px}
+.btn.full{width:100%}
+.btn:disabled{opacity:.5}
+.f{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;min-width:0}
+.f label{font-size:13px;color:var(--muted);font-weight:600}
+input,select,textarea{font:16px var(--font);color:var(--text);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:44px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:0}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fr3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px}
+.chk{display:flex;align-items:center;gap:10px;margin:6px 0 10px;font-size:15px}
+.chk input{width:22px;height:22px;min-height:0}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;padding:3px 8px;border-radius:999px;background:var(--card2);border:1px solid var(--line);white-space:nowrap}
+.chip.warn{background:var(--warnbg);color:var(--warnt);border-color:transparent}
+.chip.err{background:var(--errbg);color:var(--errt);border-color:transparent}
+.chip.ok{background:var(--okbg);color:var(--okt);border-color:transparent}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.weeknav{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.weeknav .lbl{flex:1;text-align:center;font-weight:700}
+.strip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:10px}
+.cell{border-radius:8px;min-height:62px;padding:4px 3px;text-align:center;font-size:11.5px;line-height:1.25;cursor:pointer;border:1px solid transparent;background:var(--vuoto);color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden}
+.cell .d{font-weight:700;font-size:11px;margin-bottom:2px}
+.cell .g{font-weight:600;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell.ok{background:var(--okbg);color:var(--okt)}
+.cell.warn{background:var(--warnbg);color:var(--warnt)}
+.cell.err{background:var(--errbg);color:var(--errt)}
+.cell.oggi{border-color:var(--acc)}
+.msgs{margin-top:8px;font-size:13px}
+.msg{padding:6px 8px;border-radius:8px;margin-top:4px}
+.msg.err{background:var(--errbg);color:var(--errt)}
+.msg.warn{background:var(--warnbg);color:var(--warnt)}
+.list .item{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--line);cursor:pointer}
+.list .item:last-child{border-bottom:none}
+.list{padding:0}
+.empty{text-align:center;padding:22px 10px;color:var(--muted)}
+nav.bottom{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.bottom button{appearance:none;border:none;background:none;color:var(--muted);font:600 12px var(--font);padding:8px 2px 10px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;min-height:58px}
+nav.bottom button svg{width:24px;height:24px}
+nav.bottom button.on{color:var(--acc)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:var(--card);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px))}
+@media (min-width:700px){.ov{align-items:center}.modal{border-radius:16px}}
+.modal h3{margin:0 0 12px;font-size:18px}
+.acts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.acts .btn{flex:1}
+.tappa{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+.tappa .t{font-weight:700;font-size:14px;margin-bottom:6px;display:flex;align-items:center}
+.sugg .sg{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--card)}
+.sugg .sg.sel{outline:2px solid var(--acc);border-color:var(--acc)}
+.sugg .pos{font-weight:700;width:22px;text-align:center;color:var(--muted)}
+.pv{font-size:13.5px;background:var(--card2);border-radius:10px;padding:8px 10px;margin-bottom:10px}
+.banner{background:var(--warnbg);color:var(--warnt);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:14px;display:flex;gap:10px;align-items:center}
+.toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;z-index:40;font-size:14px;max-width:90vw;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+.rules{font-size:14px}
+.rules li{margin-bottom:4px}
+.seg{display:flex;gap:8px}
+.segb{flex:1;appearance:none;border:2px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;min-height:48px;font:700 17px var(--font);cursor:pointer}
+.segb.on{background:var(--acc);border-color:var(--acc);color:var(--acct)}
+.nd{font-size:12.5px;color:var(--muted);min-height:16px;margin-top:2px}
+.orev{font-size:12.5px;color:var(--acc);font-weight:600;min-height:16px}
+.orev.err{color:var(--err)}
+.status{border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:14px;font-weight:600}
+.status.ok{background:var(--okbg);color:var(--okt)}
+.status.warn{background:var(--warnbg);color:var(--warnt)}
+.status.err{background:var(--errbg);color:var(--errt)}
+.gl{margin-top:8px;border-top:1px solid var(--line);padding-top:6px}
+.gl .r{display:flex;gap:8px;padding:5px 2px;font-size:13px;cursor:pointer;align-items:baseline}
+.gl .r .dd{font-weight:700;width:46px;flex:none}
+.gl .r .hh{text-align:right;white-space:nowrap;flex:none}
+.gl .r.err .dd{color:var(--err)} .gl .r.warn .dd{color:var(--warn)}
+textarea{min-height:120px;font-size:13px}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14px;border-bottom:1px solid var(--line)}
+.kv:last-child{border-bottom:none}
+</style>
+</head>
+<body>
+<header class="top"><h1>Gestione Flotta</h1><span class="ver" id="ver"></span></header>
+<main id="main"></main>
+<nav class="bottom">
+  <button data-tab="settimana" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>Settimana</button>
+  <button data-tab="giri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17h2l1-3h7l1 3h7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/><path d="M5 14V7a1 1 0 0 1 1-1h8v8M14 9h4l3 4v1"/></svg>Giri</button>
+  <button data-tab="autisti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6"/><path d="M16 4a4 4 0 0 1 0 8M22 21c0-3-2-5-4-5.6"/></svg>Autisti</button>
+  <button data-tab="altro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Altro</button>
+</nav>
+
+<script id="motore">
+/* =====================================================================
+   MOTORE REGOLE — Reg. CE 561/2006, ragionamento a giornate (senza orari)
+   Lavora solo sulle ore STIMATE: pianificazione, non consuntivo.
+   ===================================================================== */
+const R = {
+  GUIDA_GG: 9,        // guida giornaliera normale
+  GUIDA_GG_EST: 10,   // guida giornaliera estesa
+  MAX_EST: 2,         // estensioni a 10h per settimana
+  GUIDA_SETT: 56,     // guida settimanale
+  GUIDA_BISETT: 90,   // guida in due settimane consecutive
+  RIP_GG: 11,         // riposo giornaliero regolare
+  RIP_GG_RID: 9,      // riposo giornaliero ridotto
+  MAX_RID: 3,         // riposi giornalieri ridotti tra due settimanali
+  MAX_GIORNI: 6      // periodi di 24h prima del riposo settimanale
+};
+const GG = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
+function daISO(s){ return new Date(s+'T00:00:00Z'); }
+function isoDa(d){ return d.toISOString().slice(0,10); }
+function piuGiorni(s,n){ const d=daISO(s); d.setUTCDate(d.getUTCDate()+n); return isoDa(d); }
+function giornoSett(s){ return (daISO(s).getUTCDay()+6)%7; }
+function lunediDi(s){ return piuGiorni(s,-giornoSett(s)); }
+function giorniTra(a,b){ return Math.round((daISO(b)-daISO(a))/86400000); }
+function gg(s){ return GG[giornoSett(s)]; }
+/* guida usata nei conteggi: se non indicata vale 9h (prudente) */
+function guidaDi(x){ const g=Number(x.oreGuida)||0; return g>0?g:R.GUIDA_GG; }
+function dm(s){ const d=daISO(s); return String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0'); }
+function fh(h){ h=Math.round((Number(h)||0)*60); const o=Math.floor(h/60), m=h%60; return o+'h'+(m?String(m).padStart(2,'0'):''); }
+function oreDa(s){
+  s=String(s==null?'':s).trim().toLowerCase().replace(',', '.');
+  if(!s) return 0;
+  const m=s.match(/^(\d{1,2})\s*[:h]\s*(\d{1,2})?$/);
+  if(m){ const mm=m[2]?Number(m[2]):0; return mm<60 ? Number(m[1])+mm/60 : NaN; }
+  const n=Number(s); return isFinite(n)&&n>=0&&n<=24 ? n : NaN;
+}
+
+/**
+ * Analizza le giornate di un autista in ordine di data.
+ * Una giornata = un servizio. Ritorna { servizi: { id: {errori:[], avvisi:[], ridotto:bool} } }
+ *
+ * Riposo settimanale:
+ *  - 2 o più giorni liberi di fila = riposo settimanale regolare (45h), sempre preso;
+ *  - 1 giorno libero = può valere come riposo settimanale ridotto (24h), ma l'app lo usa
+ *    come tale SOLO se serve (6 giorni superati o 4° riposo giornaliero ridotto), e sceglie
+ *    il più recente disponibile. Altrimenti è un normale riposo giornaliero lungo.
+ */
+function analizza(autista, lista, margine){
+  margine = Number(margine)||0;
+  const sv = lista
+    .filter(a=>a.autistaId===autista.id && a.stato!=='annullato')
+    .slice().sort((a,b)=>a.data<b.data?-1:a.data>b.data?1:String(a.id).localeCompare(String(b.id)));
+  const out = {};
+  sv.forEach(x=>out[x.id]={errori:[],avvisi:[],ridotto:false,settRidottoPrima:false});
+  const E=(x,m)=>out[x.id].errori.push(m);
+  const A=(x,m)=>out[x.id].avvisi.push(m);
+
+  // totali di guida per settimana (lunedì), compreso il saldo iniziale
+  const saldoW = autista.saldoSettimana || null, saldoOre = Number(autista.saldoOre)||0;
+  const totSett = {};
+  if(saldoW) totSett[saldoW]=saldoOre;
+  sv.forEach(x=>{ const w=lunediDi(x.data); totSett[w]=(totSett[w]||0)+guidaDi(x); });
+  const cumGuida = {};
+  if(saldoW) cumGuida[saldoW]=saldoOre;
+  const estSett = {};
+
+  let ancora=null;          // primo giorno di lavoro dopo l'ultimo riposo settimanale
+  let gap=[];               // indici dei servizi preceduti da 1 solo giorno libero (riposo settimanale ridotto possibile)
+  let precRidotto=false;    // l'ultimo riposo settimanale era ridotto
+  let ridotti=0;            // riposi giornalieri ridotti dall'ultimo settimanale
+  let fuoriSegnalato=false;
+
+  function usaGap(i){
+    // usa come riposo settimanale ridotto il giorno libero singolo più recente prima del servizio i
+    const k=gap.pop(); const y=sv[k];
+    out[y.id].settRidottoPrima=true;
+    if(precRidotto) E(y,'Due riposi settimanali ridotti di seguito: prima di questo giro c\'è un solo giorno libero e anche il riposo settimanale precedente era ridotto. Servono almeno 2 giorni liberi (45h).');
+    else A(y,'Un solo giorno libero prima di questo giro: vale come riposo settimanale ridotto, da compensare entro la fine della terza settimana.');
+    precRidotto=true; ancora=y.data; gap=[]; fuoriSegnalato=false;
+    ridotti=0; for(let j=k;j<i;j++) if(out[sv[j].id].ridotto) ridotti++;
+  }
+
+  for(let i=0;i<sv.length;i++){
+    const x=sv[i], prev=sv[i-1];
+    const gIns=Number(x.oreGuida)||0, g=guidaDi(x), imp=Number(x.oreImpegno)||0;
+    if(gIns<=0) A(x,'Ore di guida non indicate: controllo incompleto, nei totali contano come 9h.');
+
+    // --- sequenza di giorni e riposo settimanale ---
+    if(!prev){
+      ancora = piuGiorni(x.data, -Math.max(0, Math.floor(Number(autista.giorniDiFila)||0)));
+    } else {
+      const d=giorniTra(prev.data,x.data);
+      if(d===0) E(x,'Due giri nello stesso giorno per lo stesso autista ('+prev.giroNome+' e '+x.giroNome+').');
+      else if(d===2) gap.push(i);
+      else if(d>=3){ ancora=x.data; gap=[]; precRidotto=false; ridotti=0; fuoriSegnalato=false; }
+    }
+    if(giorniTra(ancora,x.data)>=R.MAX_GIORNI){
+      if(gap.length) usaGap(i);
+      if(giorniTra(ancora,x.data)>=R.MAX_GIORNI && !fuoriSegnalato){
+        E(x,(giorniTra(ancora,x.data)+1)+'° giorno senza riposo settimanale: dopo 6 giorni servono almeno 2 giorni liberi (o 1, come riposo ridotto).');
+        fuoriSegnalato=true;
+      }
+    }
+
+    // --- guida giornaliera ed estensioni a 10h ---
+    const w=lunediDi(x.data);
+    if(g>R.GUIDA_GG_EST+1e-9){
+      E(x, fh(g)+' di guida: oltre il massimo assoluto di 10h al giorno.');
+    } else if(g>R.GUIDA_GG+1e-9){
+      estSett[w]=(estSett[w]||0)+1;
+      if(estSett[w]>R.MAX_EST) E(x, estSett[w]+'ª giornata oltre 9h di guida nella stessa settimana: le giornate a 10h sono massimo 2.');
+      else if(margine>0 && g>R.GUIDA_GG_EST-margine+1e-9) A(x, fh(g)+' di guida stimate: meno di '+fh(margine)+' di margine sul limite di 10h.');
+    } else if(margine>0 && g>R.GUIDA_GG-margine+1e-9){
+      A(x, fh(g)+' di guida stimate: meno di '+fh(margine)+' di margine sul limite di 9h.');
+    }
+
+    // --- coerenza impegno / guida (la pausa da 45' non viene controllata; impegno vuoto = giornata normale) ---
+    if(imp>0 && gIns>0 && imp+1e-9 < gIns) E(x, fh(imp)+' di impegno sono meno delle '+fh(gIns)+' di guida: controlla le ore.');
+
+    // --- impegno e riposo giornaliero (24h - impegno) ---
+    if(imp > 24-R.RIP_GG_RID+1e-9){
+      E(x, fh(imp)+' di impegno: nelle 24h non restano le 9h minime di riposo giornaliero.');
+    } else if(imp > 24-R.RIP_GG+1e-9){
+      out[x.id].ridotto=true;
+      if(ridotti+1>R.MAX_RID && gap.length) usaGap(i);
+      ridotti++;
+      if(ridotti>R.MAX_RID) E(x, ridotti+'° riposo giornaliero ridotto (impegno oltre 13h) dall\'ultimo riposo settimanale: il massimo è 3.');
+      else if(margine>0 && imp > 24-R.RIP_GG_RID-margine+1e-9) A(x, fh(imp)+' di impegno: margine stretto sulle 9h minime di riposo.');
+    }
+
+    // --- guida settimanale e bisettimanale ---
+    const wPrec=piuGiorni(w,-7);
+    const primaG=cumGuida[w]||0; cumGuida[w]=primaG+g;
+    if(primaG<=R.GUIDA_SETT+1e-9 && cumGuida[w]>R.GUIDA_SETT+1e-9) E(x, 'Guida settimanale a '+fh(cumGuida[w])+': oltre il limite di 56h.');
+    const bis=(totSett[wPrec]||0)+cumGuida[w], bisPrima=(totSett[wPrec]||0)+primaG;
+    if(bisPrima<=R.GUIDA_BISETT+1e-9 && bis>R.GUIDA_BISETT+1e-9) E(x, 'Guida in due settimane a '+fh(bis)+': oltre il limite di 90h.');
+  }
+  return { servizi: out };
+}
+
+/** Riepilogo di una settimana (lunedì) per un autista */
+function riepilogo(autista, lista, lun){
+  const sv=lista.filter(a=>a.autistaId===autista.id && a.stato!=='annullato');
+  const inW=(w)=>sv.filter(a=>lunediDi(a.data)===w);
+  const somma=(l)=>l.reduce((s,a)=>s+guidaDi(a),0);
+  const prec=piuGiorni(lun,-7);
+  let gPrec=somma(inW(prec)); if(autista.saldoSettimana===prec) gPrec+=Number(autista.saldoOre)||0;
+  const questa=inW(lun);
+  let gQ=somma(questa); if(autista.saldoSettimana===lun) gQ+=Number(autista.saldoOre)||0;
+  return { guida:gQ, est:questa.filter(a=>(Number(a.oreGuida)||0)>R.GUIDA_GG+1e-9).length, bis:gPrec+gQ, giorni:new Set(questa.map(a=>a.data)).size };
+}
+
+/**
+ * Problemi che un inserimento/modifica introdurrebbe.
+ * candidati: nuovi servizi (con id provvisori); escludi: id da togliere dalla lista (es. il servizio modificato)
+ */
+function problemiCandidati(autista, lista, candidati, escludi, margine){
+  const ex=new Set(escludi||[]);
+  const base=lista.filter(a=>!ex.has(a.id));
+  const prima=analizza(autista, base, margine).servizi;
+  const dopo=analizza(autista, base.concat(candidati), margine).servizi;
+  const cand=new Set(candidati.map(c=>c.id));
+  const tutti=base.concat(candidati).filter(a=>a.autistaId===autista.id);
+  const byId={}; tutti.forEach(a=>byId[a.id]=a);
+  const errori=[], avvisi=[];
+  Object.keys(dopo).forEach(id=>{
+    const a=byId[id]; if(!a) return;
+    const pre=prima[id]||{errori:[],avvisi:[]};
+    const tag=gg(a.data)+' '+dm(a.data)+(cand.has(id)?'':' ('+a.giroNome+', già assegnato)')+': ';
+    dopo[id].errori.forEach(m=>{ if(cand.has(id)||pre.errori.indexOf(m)<0) errori.push(tag+m); });
+    dopo[id].avvisi.forEach(m=>{ if(cand.has(id)||pre.avvisi.indexOf(m)<0) avvisi.push(tag+m); });
+  });
+  return { errori, avvisi };
+}
+</script>
+
+<script>
+/* =====================================================================
+   APP
+   ===================================================================== */
+const VERSIONE = '2.3';
+const $ = id => document.getElementById(id);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const oggi = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+
+let S = { v:4, salvato:0, autisti:[], giri:[], servizi:[], viaggi:{}, imp:{ margine:0.5, ultimoBackup:null } };
+let archivio='?', persistente=null;
+let tab = 'settimana';
+let settimana = lunediDi(oggi());
+
+/* ---------- ARCHIVIO LOCALE (IndexedDB, riserva localStorage) ---------- */
+const DB_NOME='gestione-flotta', DB_STORE='kv', LS_KEY='gestione-flotta-stato';
+function apriDB(){
+  return new Promise((ok,ko)=>{
+    if(!('indexedDB' in window)) return ko(new Error('no idb'));
+    const r=indexedDB.open(DB_NOME,1);
+    r.onupgradeneeded=()=>r.result.createObjectStore(DB_STORE);
+    r.onsuccess=()=>ok(r.result); r.onerror=()=>ko(r.error);
+  });
+}
+function leggiIDB(){
+  return apriDB().then(db=>new Promise((ok,ko)=>{ const t=db.transaction(DB_STORE,'readonly').objectStore(DB_STORE).get('stato'); t.onsuccess=()=>ok(t.result||null); t.onerror=()=>ko(t.error); }));
+}
+function quando(d){ if(!d) return -1; const x=d.dati&&typeof d.dati==='object'?d.dati:d; return Number(x.salvato)||(x.salvato?Date.parse(x.salvato)||0:0); }
+async function carica(){
+  // legge entrambe le copie e usa la più recente (in caso di parità vince IndexedDB)
+  let idb=null, ls=null, idbOk=false;
+  try{ idb=await leggiIDB(); idbOk=true; }catch(e){}
+  try{ const s=localStorage.getItem(LS_KEY); if(s) ls=JSON.parse(s); }catch(e){}
+  archivio=idbOk?'idb':(ls!==null||lsFunziona()?'ls':'nessuno');
+  const dati = (idb && ls) ? (quando(ls)>quando(idb)?ls:idb) : (idb||ls);
+  if(dati) S=normalizza(dati);
+  try{ if(navigator.storage && navigator.storage.persisted){ persistente=(await navigator.storage.persisted()) || (await navigator.storage.persist()); } }catch(e){}
+}
+function lsFunziona(){ try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); return true; }catch(e){ return false; } }
+let salvataggioInCorso=Promise.resolve();
+function salva(){
+  S.salvato=Date.now();
+  const json=JSON.parse(JSON.stringify(S));
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(json)); }catch(e){}
+  salvataggioInCorso=salvataggioInCorso.then(async()=>{
+    try{
+      const db=await apriDB();
+      await new Promise((ok,ko)=>{ const t=db.transaction(DB_STORE,'readwrite'); t.objectStore(DB_STORE).put(json,'stato'); t.oncomplete=ok; t.onerror=()=>ko(t.error); });
+    }catch(e){}
+  });
+}
+/* id sicuri: solo lettere, numeri, _ e - (stessa trasformazione ovunque, così i collegamenti restano) */
+/* le ore diventano i valori dei pulsanti, arrotondando verso il valore più prudente */
+function aPulsanteG(v){ v=Number(v)||0; return v<=0?0:(v>R.GUIDA_GG+1e-9?R.GUIDA_GG_EST:R.GUIDA_GG); }
+function aPulsanteI(v){ v=Number(v)||0; return v<=0?0:(v>24-R.RIP_GG+1e-9?24-R.RIP_GG_RID:24-R.RIP_GG); }
+function sid(x){ const s=String(x==null?'':x).replace(/[^\w-]/g,''); return s||null; }
+/**
+ * Converte qualsiasi formato salvato nel formato attuale (v3):
+ *  - v1.3: { autisti, giri, assegnazioni, impostazioni }, giornoIndice contato da 1
+ *  - v2.0: { v:2, autisti, giri, servizi, imp }, giornoIndice contato da 0
+ *  - backup: gli stessi dati dentro { app, versione, dati }
+ */
+function normalizza(d){
+  if(d && d.dati && typeof d.dati==='object') d=d.dati;
+  d=d||{};
+  const vecchia13 = !d.v;   // la 1.3 non salvava il numero di versione dei dati
+  const arr=(...k)=>{ for(const x of k) if(Array.isArray(d[x])) return d[x]; return []; };
+  const n={ v:4, viaggi:{}, salvato:Number(d.salvato)||(d.salvato?Date.parse(d.salvato)||0:0), autisti:[], giri:[], servizi:[], imp:Object.assign({margine:0.5,ultimoBackup:null}, d.imp||d.impostazioni||{}) };
+  n.autisti=arr('autisti').map(a=>({ id:sid(a.id)||uid(), nome:String(a.nome||'Senza nome'), telefono:a.telefono||'', attivo:a.attivo!==false,
+    giorniDiFila:Math.max(0,parseInt(a.giorniDiFila,10)||0), saldoSettimana:a.saldoSettimana||null, saldoOre:Number(a.saldoOre)||0, note:a.note||'' }));
+  n.giri=arr('giri','template').map(g=>({ id:sid(g.id)||uid(), nome:String(g.nome||'Giro'), note:g.note||'',
+    messaggi:(Array.isArray(g.messaggi)?g.messaggi:[]).filter(m=>m&&String(m.testo||'').trim()).map((m,i)=>({ id:sid(m.id)||uid(), nome:String(m.nome||'').trim()||'Messaggio '+(i+1), testo:String(m.testo) })),
+    tappe:(Array.isArray(g.tappe)&&g.tappe.length?g.tappe:[{}]).map(t=>({ partenzaDa:t.partenzaDa||'', oreGuida:aPulsanteG(t.oreGuida), oreImpegno:aPulsanteI(t.oreImpegno) })) }));
+  n.servizi=arr('servizi','assegnazioni','giornate').filter(s=>s&&s.data&&s.stato!=='annullato').map(s=>{
+    const gi=Number(s.giornoIndice)||0;
+    const id=sid(s.id)||uid();
+    return { id, gruppo:sid(s.gruppo)||sid(s.assegnazioneId)||id,
+      autistaId:sid(s.autistaId), giroId:sid(s.giroId), giroNome:s.giroNome||'Giro', data:String(s.data).slice(0,10),
+      giornoIndice:vecchia13?Math.max(0,gi-1):Math.max(0,gi), totGiorni:Math.max(1,Number(s.totGiorni)||1),
+      partenzaDa:s.partenzaDa||'', oreGuida:aPulsanteG(s.oreGuida), oreImpegno:aPulsanteI(s.oreImpegno), stato:'pianificato' };
+  });
+  // dati del viaggio (uno per giro assegnato): rimorchio, orari e note dei messaggi, ora di invio
+  const gruppi=new Set(n.servizi.map(x=>x.gruppo));
+  const vg=(d.viaggi&&typeof d.viaggi==='object')?d.viaggi:{};
+  Object.keys(vg).forEach(k=>{ const id=sid(k), x=vg[k]; if(!id||!gruppi.has(id)||!x||typeof x!=='object') return;
+    const mappa=(o,f)=>{ const r={}; if(o&&typeof o==='object') Object.keys(o).forEach(m=>{ const mk=sid(m); if(mk) r[mk]=f(o[m]); }); return r; };
+    n.viaggi[id]={ rimorchio:String(x.rimorchio||''), orari:mappa(x.orari,v=>Array.isArray(v)?v.map(String):[]), note:mappa(x.note,v=>String(v||'')), inviati:mappa(x.inviati,v=>String(v||'')) }; });
+  if(typeof n.imp.margine!=='number') n.imp.margine=Number(n.imp.margine)||0;
+  return n;
+}
+
+/* ---------- UTILITÀ UI ---------- */
+function toast(t){ const el=document.createElement('div'); el.className='toast'; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2600); }
+function apriModale(html){ chiudiModale(); const ov=document.createElement('div'); ov.className='ov'; ov.id='ov'; ov.innerHTML='<div class="modal" role="dialog" aria-modal="true">'+html+'</div>'; ov.addEventListener('click',e=>{ if(e.target===ov) chiudiModale(); }); document.body.appendChild(ov); }
+function chiudiModale(){ const o=$('ov'); if(o) o.remove(); }
+function autista(id){ return S.autisti.find(a=>a.id===id); }
+function attivi(){ return S.autisti.filter(a=>a.attivo).sort((a,b)=>a.nome.localeCompare(b.nome)); }
+function rangeSett(lun){ const fine=piuGiorni(lun,6); return dm(lun)+' – '+dm(fine); }
+function stato(an,id){ const r=an[id]; if(!r) return ''; return r.errori.length?'err':r.avvisi.length?'warn':'ok'; }
+function oreInCampo(val){ return val?fh(val).replace('h',':').replace(/:$/,''):''; }
+function testoOre(s){ if(!String(s||'').trim()) return ['','']; const v=oreDa(s); return isFinite(v)?['= '+fh(v),'']:['non valido: scrivi 9, 8:30 o 8,5','err']; }
+function campoOre(id,label,val){
+  const iv=oreInCampo(val), t=testoOre(iv);
+  return '<div class="f"><label for="'+id+'">'+label+'</label><input id="'+id+'" inputmode="decimal" placeholder="es. 8:30" value="'+iv+'" oninput="mostraOre(this)"><div class="orev '+t[1]+'" id="'+id+'_v">'+t[0]+'</div></div>';
+}
+function fhn(v){ return v>0?fh(v):'n.d.'; }
+/* pulsanti ore: si tocca per scegliere, si ritocca per togliere (= non indicato) */
+function pulsantiOre(label, valori, val, azione, vuoto){
+  return '<div class="f"><label>'+label+'</label><div class="seg">'+valori.map(v=>'<button type="button" class="segb'+(val===v?' on':'')+'" onclick="'+azione+','+v+')">'+v+'h</button>').join('')+'</div><div class="nd">'+(val>0?'':vuoto)+'</div></div>';
+}
+function pulsantiGuida(val,azione){ return pulsantiOre('Ore di guida',[9,10],val,azione,'Non indicata: nei totali vale 9h'); }
+function pulsantiImpegno(val,azione){ return pulsantiOre('Ore di impegno',[13,15],val,azione,'Non indicato'); }
+function mostraOre(el){ const o=$(el.id+'_v'); if(!o) return; const t=testoOre(el.value); o.textContent=t[0]; o.className='orev '+t[1]; }
+
+/* ---------- RENDER ---------- */
+function render(){
+  $('ver').textContent='v'+VERSIONE;
+  document.querySelectorAll('nav.bottom button').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
+  const m=$('main');
+  if(tab==='settimana') m.innerHTML=vistaSettimana();
+  else if(tab==='giri') m.innerHTML=vistaGiri();
+  else if(tab==='autisti') m.innerHTML=vistaAutisti();
+  else m.innerHTML=vistaAltro();
+}
+
+function bannerBackup(){
+  if(!S.servizi.length && !S.giri.length) return '';
+  const ub=S.imp.ultimoBackup;
+  if(ub && giorniTra(ub.slice(0,10), oggi())<7) return '';
+  return '<div class="banner"><span class="grow">'+(ub?'Ultimo backup il '+dm(ub.slice(0,10))+'.':'Non hai ancora fatto un backup.')+' I dati sono solo su questo dispositivo.</span><button class="btn sm" onclick="esporta()">Backup</button></div>';
+}
+
+function vistaSettimana(){
+  let h=bannerBackup();
+  if(archivio==='nessuno') h+='<div class="status err">Questo browser non permette di salvare i dati: quello che inserisci andrà perso. Esci dalla navigazione in incognito o installa l\'app.</div>';
+  h+='<div class="weeknav"><button class="btn sm" onclick="cambiaSett(-7)" aria-label="Settimana precedente">‹</button><div class="lbl">'+rangeSett(settimana)+'</div><button class="btn sm" onclick="cambiaSett(7)" aria-label="Settimana successiva">›</button>';
+  if(settimana!==lunediDi(oggi())) h+='<button class="btn sm" onclick="settimana=lunediDi(oggi());render()">Oggi</button>';
+  h+='</div>';
+  h+='<button class="btn pri full" onclick="apriAssegna()" '+(S.giri.length&&attivi().length?'':'disabled')+'>Assegna un giro</button>';
+  if(!attivi().length) return h+'<div class="card empty" style="margin-top:12px">Aggiungi prima gli autisti dalla scheda <b>Autisti</b>.</div>';
+  if(!S.giri.length) h+='<div class="card empty" style="margin-top:12px">Crea un giro dalla scheda <b>Giri</b> per poterlo assegnare.</div>';
+  const t=oggi(), fine=piuGiorni(settimana,6);
+  // riepilogo della settimana
+  const AN={}; let nE=0,nW=0,nS=0;
+  attivi().forEach(a=>{ AN[a.id]=analizza(a, S.servizi, 0).servizi; });
+  S.servizi.forEach(s=>{ if(s.data<settimana||s.data>fine) return; const r=AN[s.autistaId]&&AN[s.autistaId][s.id]; if(!r) return; nS++; nE+=r.errori.length; nW+=r.avvisi.length; });
+  if(nE) h+='<div class="status err" style="margin-top:12px">'+nE+' '+(nE===1?'problema':'problemi')+' da risolvere in questa settimana</div>';
+  else if(nW) h+='<div class="status warn" style="margin-top:12px">Settimana in regola, con '+nW+' '+(nW===1?'avviso':'avvisi')+' da controllare</div>';
+  else if(nS) h+='<div class="status ok" style="margin-top:12px">Settimana in regola secondo le ore stimate</div>';
+  h+='<div style="margin-top:12px">';
+  attivi().forEach(a=>{
+    const an=AN[a.id];
+    const rp=riepilogo(a, S.servizi, settimana);
+    const mie=S.servizi.filter(s=>s.autistaId===a.id);
+    h+='<div class="card"><div class="row"><b class="grow">'+esc(a.nome)+'</b>';
+    if(mie.some(s=>lunediDi(s.data)===settimana)) h+='<button class="btn sm" onclick="condividi(\''+a.id+'\')">Invia</button>';
+    h+='</div>';
+    h+='<div class="chips"><span class="chip '+(rp.guida>R.GUIDA_SETT?'err':rp.guida>R.GUIDA_SETT-6?'warn':'')+'">Guida <b>'+fh(rp.guida)+'</b>/56h</span>';
+    h+='<span class="chip '+(rp.est>R.MAX_EST?'err':rp.est===R.MAX_EST?'warn':'')+'">Giornate a 10h <b>'+rp.est+'</b>/2</span>';
+    h+='<span class="chip '+(rp.bis>R.GUIDA_BISETT?'err':rp.bis>R.GUIDA_BISETT-10?'warn':'')+'">2 settimane <b>'+fh(rp.bis)+'</b>/90h</span></div>';
+    h+='<div class="strip">';
+    const msgs=[];
+    for(let i=0;i<7;i++){
+      const d=piuGiorni(settimana,i);
+      const qui=mie.filter(s=>s.data===d);
+      if(!qui.length){ h+='<div class="cell'+(d===t?' oggi':'')+'" onclick="apriAssegna(\''+d+'\',\''+a.id+'\')"><div class="d">'+gg(d)+' '+daISO(d).getUTCDate()+'</div><div>—</div></div>'; continue; }
+      const st=qui.map(s=>stato(an,s.id)); const c=st.includes('err')?'err':st.includes('warn')?'warn':'ok';
+      const s=qui[0];
+      h+='<div class="cell '+c+(d===t?' oggi':'')+'" onclick="apriGiornata(\''+s.id+'\')"><div class="d">'+gg(d)+' '+daISO(d).getUTCDate()+'</div><div class="g">'+esc(s.giroNome)+'</div><div>'+(s.oreGuida>0?fh(s.oreGuida):'—')+'</div>'+(qui.length>1?'<div>+'+(qui.length-1)+'</div>':'')+'</div>';
+      qui.forEach(x=>{ const r=an[x.id]; if(!r) return; r.errori.forEach(m=>msgs.push(['err',gg(d)+' '+dm(d)+': '+m])); r.avvisi.forEach(m=>msgs.push(['warn',gg(d)+' '+dm(d)+': '+m])); });
+    }
+    h+='</div>';
+    const inSett=mie.filter(s=>s.data>=settimana&&s.data<=fine).sort((p,q)=>p.data<q.data?-1:p.data>q.data?1:p.giornoIndice-q.giornoIndice);
+    if(inSett.length){
+      h+='<div class="gl">';
+      inSett.forEach(s=>{
+        h+='<div class="r '+stato(an,s.id)+'" onclick="apriGiornata(\''+s.id+'\')"><span class="dd">'+gg(s.data)+' '+daISO(s.data).getUTCDate()+'</span><span class="grow"><b>'+esc(s.giroNome)+'</b>'+(s.totGiorni>1?' <span class="muted">g. '+(s.giornoIndice+1)+'/'+s.totGiorni+'</span>':'')+(s.partenzaDa?'<br><span class="muted">da '+esc(s.partenzaDa)+'</span>':'')+'</span><span class="hh">guida '+fhn(s.oreGuida)+'<br><span class="muted">imp. '+fhn(s.oreImpegno)+'</span></span></div>';
+      });
+      h+='</div>';
+    }
+    if(msgs.length) h+='<div class="msgs">'+msgs.map(m=>'<div class="msg '+m[0]+'">'+esc(m[1])+'</div>').join('')+'</div>';
+    h+='</div>';
+  });
+  h+='</div><p class="small muted">Verde: tutto in regola. Giallo: da tenere d\'occhio. Rosso: il piano supera i limiti del 561/2006. Tocca un giorno vuoto per assegnare, un giorno pieno per modificarlo.</p>';
+  return h;
+}
+function cambiaSett(n){ settimana=piuGiorni(settimana,n); render(); }
+
+function vistaGiri(){
+  let h='<button class="btn pri full" onclick="apriGiro()">Nuovo giro</button>';
+  h+='<h2 class="sec">Giri salvati</h2>';
+  if(!S.giri.length) return h+'<div class="card empty">Nessun giro. Creane uno con le giornate e le ore stimate.</div>';
+  h+='<div class="card list">';
+  S.giri.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(g=>{
+    const tg=g.tappe.reduce((s,t)=>s+(t.oreGuida||0),0), nd=g.tappe.filter(t=>!(t.oreGuida>0)).length;
+    const pb=problemiGiro(g);
+    h+='<div class="item" onclick="apriGiro(\''+g.id+'\')"><div class="grow"><b>'+esc(g.nome)+'</b><div class="small muted">'+g.tappe.length+' '+(g.tappe.length===1?'giornata':'giornate')+' · guida '+fh(tg)+(nd?' · '+nd+(nd===1?' giorno':' giorni')+' senza guida':'')+'</div></div>'+(pb.errori.length?'<span class="chip err">Da correggere</span>':pb.avvisi.length?'<span class="chip warn">Attenzione</span>':'')+'</div>';
+  });
+  return h+'</div>';
+}
+function problemiGiro(g){
+  const fake={id:'__giro'};
+  const l=g.tappe.map((t,i)=>({id:'t'+i,autistaId:'__giro',giroNome:g.nome,data:piuGiorni('2030-01-07',i),oreGuida:t.oreGuida,oreImpegno:t.oreImpegno}));
+  const r=analizza(fake,l,0).servizi; const errori=[],avvisi=[];
+  l.forEach((x,i)=>{ r[x.id].errori.forEach(m=>errori.push('Giorno '+(i+1)+': '+m)); r[x.id].avvisi.forEach(m=>avvisi.push('Giorno '+(i+1)+': '+m)); });
+  return {errori,avvisi};
+}
+
+function vistaAutisti(){
+  let h='<div class="card"><div class="row"><input id="nA" placeholder="Nome e cognome" onkeydown="if(event.key===\'Enter\')aggiungiAutista()"><button class="btn pri" onclick="aggiungiAutista()">Aggiungi</button></div></div>';
+  h+='<h2 class="sec">Autisti</h2>';
+  if(!S.autisti.length) return h+'<div class="card empty">Nessun autista.</div>';
+  h+='<div class="card list">';
+  S.autisti.slice().sort((a,b)=>(b.attivo-a.attivo)||a.nome.localeCompare(b.nome)).forEach(a=>{
+    const info=[];
+    if(!a.attivo) info.push('non attivo');
+    if(a.giorniDiFila) info.push(a.giorniDiFila+' giorni già lavorati dall\'ultimo riposo settimanale');
+    if(a.saldoOre) info.push(fh(a.saldoOre)+' di guida nella settimana del '+dm(a.saldoSettimana));
+    const n=S.servizi.filter(s=>s.autistaId===a.id && s.data>=oggi()).length;
+    if(n) info.push(n+' giornate in programma');
+    h+='<div class="item" onclick="apriAutista(\''+a.id+'\')"><div class="grow"><b'+(a.attivo?'':' class="muted"')+'>'+esc(a.nome)+'</b>'+(info.length?'<div class="small muted">'+esc(info.join(' · '))+'</div>':'')+'</div><span class="muted">›</span></div>';
+  });
+  return h+'</div>';
+}
+function aggiungiAutista(){
+  const n=$('nA').value.trim(); if(!n) return;
+  S.autisti.push({id:uid(),nome:n,telefono:'',attivo:true,giorniDiFila:0,saldoSettimana:null,saldoOre:0,note:''});
+  salva(); render(); toast('Autista aggiunto'); setTimeout(()=>{ const i=$('nA'); if(i) i.focus(); },50);
+}
+
+function vistaAltro(){
+  let h='';
+  h+='<h2 class="sec">Backup</h2><div class="card"><div class="small muted" style="margin-bottom:10px">I dati restano solo su questo dispositivo. Fai un backup regolarmente: se si cancellano i dati del browser, senza backup si perde tutto. Il backup serve anche per passare i dati su un altro PC o telefono.</div>';
+  h+='<div style="display:flex;flex-direction:column;gap:8px"><button class="btn pri" onclick="esporta()">Salva backup (file)</button><button class="btn" onclick="copiaBackup()">Copia come testo (da incollare su WhatsApp o mail)</button><button class="btn" onclick="$(\'fileImp\').click()">Ripristina da file</button><button class="btn" onclick="apriIncolla()">Ripristina incollando il testo</button></div><input type="file" id="fileImp" accept=".json,application/json,text/plain" style="display:none" onchange="importa(this)">';
+  h+='<div class="small muted" style="margin-top:8px">'+(S.imp.ultimoBackup?'Ultimo backup: '+dm(S.imp.ultimoBackup.slice(0,10)):'Nessun backup fatto')+' · '+S.autisti.length+' autisti, '+S.giri.length+' giri, '+S.servizi.length+' giornate</div></div>';
+  h+='<h2 class="sec">Regole controllate</h2><div class="card rules"><ul style="margin:0;padding-left:18px">';
+  h+='<li>Guida: pulsante 9h o 10h. Le giornate a 10h sono massimo 2 a settimana (lunedì–domenica). Se non indichi la guida, la giornata è gialla e nei totali vale 9h.</li>';
+  h+='<li>Impegno: pulsante 13h (riposo regolare) o 15h (riposo ridotto, massimo 3 tra due riposi settimanali). Se non lo indichi, la giornata conta come lavorata normale.</li>';
+  h+='<li>La pausa da 45\' non viene controllata.</li>';
+  h+='<li>Riposo settimanale entro 6 giorni: 2 giorni liberi = regolare; 1 giorno libero = ridotto, da compensare, mai due volte di seguito.</li>';
+  h+='<li>Guida 56h a settimana e 90h in due settimane consecutive.</li>';
+  h+='<li>Un solo giro al giorno per autista.</li></ul>';
+  h+='<p class="small muted" style="margin-bottom:0">Calcolato sulle ore stimate, non su quelle reali. Non gestisce doppio equipaggio, riposo frazionato 3+9, traghetto o treno. Aiuta a pianificare, non sostituisce il tachigrafo.</p></div>';
+  h+='<h2 class="sec">Dispositivo</h2><div class="card">';
+  h+='<div class="kv"><span>Archivio</span><b>'+(archivio==='idb'?'Database del dispositivo':archivio==='ls'?'Memoria semplice del browser':'Non disponibile')+'</b></div>';
+  h+='<div class="kv"><span>Protezione dalla pulizia automatica</span><b>'+(persistente===true?'Attiva':persistente===false?'Non attiva':'Sconosciuta')+'</b></div>';
+  if(persistente===false) h+='<div class="small muted" style="margin-top:6px">Installa l\'app sulla schermata Home per ottenere la protezione: senza, il browser potrebbe cancellare i dati se manca spazio.</div>';
+  if(eventoInstalla) h+='<button class="btn pri full" style="margin-top:10px" onclick="installa()">Installa l\'app</button>';
+  h+='</div>';
+  h+='<h2 class="sec">Zona pericolosa</h2><div class="card"><button class="btn dang full" onclick="cancellaTutto()">Cancella tutti i dati</button></div>';
+  h+='<p class="small muted" style="text-align:center">Gestione Flotta v'+VERSIONE+' · dati salvati sul dispositivo</p>';
+  return h;
+}
+
+/* ---------- GIRI ---------- */
+let EGiro=null;
+function apriGiro(id){
+  const g=id?S.giri.find(x=>x.id===id):null;
+  EGiro=g?JSON.parse(JSON.stringify(g)):{id:null,nome:'',note:'',messaggi:[],tappe:[{partenzaDa:'',oreGuida:0,oreImpegno:0}]};
+  if(!Array.isArray(EGiro.messaggi)) EGiro.messaggi=[];
+  disegnaGiro();
+}
+function leggiGiro(){
+  if(!$('giN')) return;
+  EGiro.nome=$('giN').value; EGiro.note=$('giNo').value;
+  EGiro.tappe=EGiro.tappe.map((t,i)=>({ partenzaDa:$('tP'+i).value.trim(), oreGuida:t.oreGuida, oreImpegno:t.oreImpegno }));
+  EGiro.messaggi=EGiro.messaggi.map((m,i)=>({ id:m.id, nome:$('mN'+i).value, testo:$('mT'+i).value }));
+}
+function disegnaGiro(){
+  let h='<h3>'+(EGiro.id?'Modifica giro':'Nuovo giro')+'</h3>';
+  h+='<div class="f"><label for="giN">Nome del giro</label><input id="giN" placeholder="es. Sicilia" value="'+esc(EGiro.nome)+'"></div>';
+  h+='<div class="small muted" style="margin-bottom:8px">Per ogni giornata tocca le ore di guida e di impegno previste. Se non le sai, lasciale vuote: il giro si salva lo stesso.</div>';
+  EGiro.tappe.forEach((t,i)=>{
+    h+='<div class="tappa"><div class="t"><span class="grow">Giorno '+(i+1)+'</span>'+(EGiro.tappe.length>1?'<button class="btn sm" onclick="togliTappa('+i+')" aria-label="Togli giorno">Togli</button>':'')+'</div>';
+    h+='<div class="f"><label for="tP'+i+'">Partenza della giornata</label><input id="tP'+i+'" placeholder="es. Pescara" value="'+esc(t.partenzaDa)+'"></div>';
+    h+=pulsantiGuida(t.oreGuida,"oreTappa('G',"+i)+pulsantiImpegno(t.oreImpegno,"oreTappa('M',"+i)+'</div>';
+  });
+  h+='<button class="btn full" onclick="aggiungiTappa()">+ Aggiungi giornata</button>';
+  h+='<div class="f" style="margin-top:10px"><label for="giNo">Note</label><input id="giNo" value="'+esc(EGiro.note)+'"></div>';
+  h+='<h2 class="sec" style="margin-top:14px">Messaggi per l\'autista</h2>';
+  h+='<div class="small muted" style="margin-bottom:8px">Incolla la parte fissa di ogni messaggio (titolo, cliente, luoghi, link). Nome dell\'autista, data, rimorchio e orari li sistemi quando lo mandi. Le note su pallet e resi le scrivi al momento.</div>';
+  EGiro.messaggi.forEach((m,i)=>{
+    h+='<div class="tappa"><div class="t"><input id="mN'+i+'" value="'+esc(m.nome)+'" placeholder="Messaggio '+(i+1)+'" style="flex:1;font-weight:700"><button class="btn sm" style="margin-left:8px" onclick="togliMessaggio('+i+')">Togli</button></div>';
+    h+='<textarea id="mT'+i+'" placeholder="Incolla qui il messaggio">'+esc(m.testo)+'</textarea></div>';
+  });
+  h+='<button class="btn full" onclick="aggiungiMessaggio()">+ Aggiungi messaggio</button>';
+  h+='<div id="giroPb"></div>';
+  h+='<div class="acts">'+(EGiro.id?'<button class="btn dang" onclick="eliminaGiro()">Elimina</button>':'')+'<button class="btn" onclick="chiudiModale()">Annulla</button><button class="btn pri" onclick="salvaGiro()">Salva giro</button></div>';
+  apriModale(h);
+}
+function oreTappa(k,i,v){ leggiGiro(); const t=EGiro.tappe[i], key=k==='G'?'oreGuida':'oreImpegno'; t[key]=t[key]===v?0:v; disegnaGiro(); }
+function aggiungiTappa(){ leggiGiro(); EGiro.tappe.push({partenzaDa:'',oreGuida:0,oreImpegno:0}); disegnaGiro(); }
+function aggiungiMessaggio(){ leggiGiro(); EGiro.messaggi.push({id:uid(),nome:'Messaggio '+(EGiro.messaggi.length+1),testo:''}); disegnaGiro(); }
+function togliMessaggio(i){ leggiGiro(); if(EGiro.messaggi[i].testo.trim() && !confirm('Togliere "'+EGiro.messaggi[i].nome+'"?')) return; EGiro.messaggi.splice(i,1); disegnaGiro(); }
+function togliTappa(i){ leggiGiro(); EGiro.tappe.splice(i,1); disegnaGiro(); }
+function salvaGiro(){
+  leggiGiro();
+  const nome=EGiro.nome.trim(); if(!nome){ toast('Scrivi il nome del giro'); $('giN').focus(); return; }
+  const pb=problemiGiro(EGiro);
+  if(pb.errori.length){
+    $('giroPb').innerHTML='<div class="msgs">'+pb.errori.map(m=>'<div class="msg err">'+esc(m)+'</div>').join('')+'</div>';
+    if(!confirm('Questo giro, da solo, supera già i limiti:\n\n'+pb.errori.join('\n')+'\n\nSalvarlo comunque?')) return;
+  }
+  const msg=EGiro.messaggi.filter(m=>m.testo.trim()).map((m,i)=>({id:m.id||uid(),nome:m.nome.trim()||'Messaggio '+(i+1),testo:m.testo}));
+  const g={id:EGiro.id||uid(),nome,note:EGiro.note.trim(),messaggi:msg,tappe:EGiro.tappe};
+  const i=S.giri.findIndex(x=>x.id===g.id);
+  if(i>=0) S.giri[i]=g; else S.giri.push(g);
+  // allinea il nome nelle giornate già assegnate
+  S.servizi.forEach(s=>{ if(s.giroId===g.id) s.giroNome=g.nome; });
+  salva(); chiudiModale(); render(); toast('Giro salvato');
+}
+function eliminaGiro(){
+  if(!confirm('Eliminare il giro "'+EGiro.nome+'"? Le giornate già assegnate restano in calendario.')) return;
+  S.giri=S.giri.filter(g=>g.id!==EGiro.id); salva(); chiudiModale(); render(); toast('Giro eliminato');
+}
+
+/* ---------- AUTISTI ---------- */
+function apriAutista(id){
+  const a=autista(id); if(!a) return;
+  let h='<h3>'+esc(a.nome)+'</h3>';
+  h+='<div class="f"><label for="aN">Nome e cognome</label><input id="aN" value="'+esc(a.nome)+'"></div>';
+  h+='<div class="f"><label for="aT">Telefono (per inviare il programma su WhatsApp)</label><input id="aT" type="tel" inputmode="tel" placeholder="es. 3331234567" value="'+esc(a.telefono)+'"></div>';
+  h+='<label class="chk"><input type="checkbox" id="aA" '+(a.attivo?'checked':'')+'> Attivo (compare in settimana e tra i suggeriti)</label>';
+  h+='<h2 class="sec" style="margin-top:6px">Situazione di partenza</h2><div class="small muted" style="margin-bottom:8px">Serve solo all\'inizio, prima del primo giro inserito, perché l\'app non conosce le settimane precedenti.</div>';
+  h+='<div class="f"><label for="aR">Giorni già lavorati dall\'ultimo riposo settimanale, prima del primo giro in calendario</label><input id="aR" inputmode="numeric" placeholder="0" value="'+(a.giorniDiFila||'')+'"></div>';
+  h+='<div class="fr2"><div class="f"><label for="aSW">Settimana (lunedì)</label><input id="aSW" type="date" value="'+esc(a.saldoSettimana||piuGiorni(lunediDi(oggi()),-7))+'"></div>'+campoOre('aSO','Ore di guida già fatte',a.saldoOre)+'</div>';
+  h+='<div class="acts"><button class="btn dang" onclick="eliminaAutista(\''+a.id+'\')">Elimina</button><button class="btn" onclick="chiudiModale()">Annulla</button><button class="btn pri" onclick="salvaAutista(\''+a.id+'\')">Salva</button></div>';
+  apriModale(h);
+}
+function salvaAutista(id){
+  const a=autista(id); const n=$('aN').value.trim(); if(!n){ toast('Scrivi il nome'); return; }
+  const so=oreDa($('aSO').value); if(!isFinite(so)){ toast('Ore di guida non valide'); return; }
+  const sw=$('aSW').value;
+  a.nome=n; a.telefono=$('aT').value.trim(); a.attivo=$('aA').checked;
+  a.giorniDiFila=Math.max(0,parseInt($('aR').value,10)||0);
+  a.saldoOre=so; a.saldoSettimana=so>0&&sw?lunediDi(sw):null;
+  salva(); chiudiModale(); render(); toast('Autista salvato');
+}
+function eliminaAutista(id){
+  const a=autista(id); const n=S.servizi.filter(s=>s.autistaId===id).length;
+  if(!confirm('Eliminare '+a.nome+'?'+(n?' Verranno eliminate anche le sue '+n+' giornate assegnate.':''))) return;
+  S.autisti=S.autisti.filter(x=>x.id!==id); S.servizi=S.servizi.filter(s=>s.autistaId!==id);
+  salva(); chiudiModale(); render(); toast('Autista eliminato');
+}
+
+/* ---------- ASSEGNA GIRO + SUGGERITORE ---------- */
+let EAs=null;
+function apriAssegna(data, autistaId){
+  if(!S.giri.length){ toast('Crea prima un giro'); tab='giri'; render(); return; }
+  if(!attivi().length){ toast('Aggiungi prima un autista'); tab='autisti'; render(); return; }
+  const giri=S.giri.slice().sort((a,b)=>a.nome.localeCompare(b.nome));
+  EAs={ giroId:giri[0].id, data:data||(settimana===lunediDi(oggi())?oggi():settimana), autistaId:autistaId||null };
+  disegnaAssegna();
+}
+function candidatiPer(g, data, aId){
+  return g.tappe.map((t,i)=>({ id:'tmp'+i, gruppo:'tmp', autistaId:aId, giroId:g.id, giroNome:g.nome, data:piuGiorni(data,i), giornoIndice:i, totGiorni:g.tappe.length, partenzaDa:t.partenzaDa, oreGuida:t.oreGuida, oreImpegno:t.oreImpegno, stato:'pianificato' }));
+}
+function suggerimenti(g, data){
+  return attivi().map(a=>{
+    const c=candidatiPer(g,data,a.id);
+    const p=problemiCandidati(a, S.servizi, c, [], 0);
+    const rp=riepilogo(a, S.servizi, lunediDi(data));
+    // equità: quante volte ha fatto questo giro nelle ultime 8 settimane
+    const da=piuGiorni(data,-56);
+    const volte=new Set(S.servizi.filter(s=>s.autistaId===a.id&&s.giroId===g.id&&s.data>=da&&s.data<data).map(s=>s.gruppo)).size;
+    const punti=p.errori.length*1000+p.avvisi.length*50+rp.guida+volte*8;
+    let motivo;
+    if(p.errori.length) motivo=p.errori[0];
+    else if(p.avvisi.length) motivo=p.avvisi[0];
+    else motivo='Nessun problema · '+fh(rp.guida)+' di guida in settimana'+(volte?' · fatto '+volte+(volte===1?' volta':' volte')+' di recente':'');
+    return {a,p,punti,motivo};
+  }).sort((x,y)=>x.punti-y.punti||x.a.nome.localeCompare(y.a.nome));
+}
+function disegnaAssegna(){
+  const g=S.giri.find(x=>x.id===EAs.giroId)||S.giri[0]; EAs.giroId=g.id;
+  let h='<h3>Assegna un giro</h3>';
+  h+='<div class="fr2"><div class="f"><label for="asG">Giro</label><select id="asG" onchange="EAs.giroId=this.value;EAs.autistaId=null;disegnaAssegna()">';
+  S.giri.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(x=>h+='<option value="'+x.id+'"'+(x.id===g.id?' selected':'')+'>'+esc(x.nome)+'</option>');
+  h+='</select></div><div class="f"><label for="asD">Primo giorno</label><input id="asD" type="date" value="'+esc(EAs.data)+'" onchange="if(this.value){EAs.data=this.value;disegnaAssegna()}"></div></div>';
+  h+='<div class="pv">'+g.tappe.map((t,i)=>{ const d=piuGiorni(EAs.data,i); return '<div><b>'+gg(d)+' '+dm(d)+'</b>'+(t.partenzaDa?' da '+esc(t.partenzaDa):'')+': guida '+fhn(t.oreGuida)+', impegno '+fhn(t.oreImpegno)+'</div>'; }).join('')+'</div>';
+  const sg=suggerimenti(g, EAs.data);
+  if(!EAs.autistaId || !sg.some(s=>s.a.id===EAs.autistaId)) EAs.autistaId=sg[0].a.id;
+  h+='<div class="small muted" style="margin-bottom:6px">Autisti dal più adatto al meno adatto:</div><div class="sugg">';
+  sg.forEach((s,i)=>{
+    const c=s.p.errori.length?'err':s.p.avvisi.length?'warn':'ok';
+    const lab=s.p.errori.length?s.p.errori.length+(s.p.errori.length===1?' errore':' errori'):s.p.avvisi.length?s.p.avvisi.length+(s.p.avvisi.length===1?' avviso':' avvisi'):'In regola';
+    h+='<div class="sg'+(s.a.id===EAs.autistaId?' sel':'')+'" onclick="EAs.autistaId=\''+s.a.id+'\';disegnaAssegna()"><div class="pos">'+(i+1)+'</div><div class="grow"><div class="row"><b class="grow">'+esc(s.a.nome)+'</b><span class="chip '+c+'">'+lab+'</span></div><div class="small muted">'+esc(s.motivo)+'</div></div></div>';
+  });
+  h+='</div>';
+  const sel=sg.find(s=>s.a.id===EAs.autistaId);
+  if(sel && (sel.p.errori.length+sel.p.avvisi.length)>1){
+    h+='<div class="msgs">'+sel.p.errori.map(m=>'<div class="msg err">'+esc(m)+'</div>').join('')+sel.p.avvisi.map(m=>'<div class="msg warn">'+esc(m)+'</div>').join('')+'</div>';
+  }
+  h+='<div class="acts"><button class="btn" onclick="chiudiModale()">Annulla</button><button class="btn '+(sel&&sel.p.errori.length?'dang':'pri')+'" onclick="confermaAssegna()">Assegna a '+esc(sel?sel.a.nome.split(' ')[0]:'')+'</button></div>';
+  apriModale(h);
+}
+function confermaAssegna(){
+  const g=S.giri.find(x=>x.id===EAs.giroId); const a=autista(EAs.autistaId); if(!g||!a) return;
+  const c=candidatiPer(g,EAs.data,a.id);
+  const p=problemiCandidati(a,S.servizi,c,[],0);
+  if(p.errori.length && !confirm('Con questo giro '+a.nome+' supera i limiti:\n\n'+p.errori.join('\n')+'\n\nAssegnare comunque?')) return;
+  const gruppo=uid();
+  c.forEach(x=>{ x.id=uid(); x.gruppo=gruppo; S.servizi.push(x); });
+  salva(); chiudiModale(); settimana=lunediDi(EAs.data); tab='settimana'; render(); toast(g.nome+' assegnato a '+a.nome);
+}
+
+/* ---------- MODIFICA GIORNATA ---------- */
+let EGg=null;
+function giroDa(id){ return S.giri.find(g=>g.id===id)||null; }
+function apriGiornata(id){
+  const s=S.servizi.find(x=>x.id===id); if(!s) return;
+  EGg={ id:s.id, v:Object.assign({},s), resto:true, giroId:s.giroId, tappa:s.giornoIndice };
+  disegnaGiornata();
+}
+function leggiGiornata(){
+  if(!$('egD')) return;
+  EGg.v.data=$('egD').value||EGg.v.data; EGg.v.autistaId=$('egA').value; EGg.v.partenzaDa=$('egP').value.trim();
+  if($('egR')) EGg.resto=$('egR').checked;   // se la casella non c'è, resta la scelta precedente
+}
+function caricaTappa(){
+  const g=giroDa(EGg.giroId); if(!g) return;
+  EGg.tappa=Math.max(0,Math.min(EGg.tappa,g.tappe.length-1));
+  const t=g.tappe[EGg.tappa];
+  Object.assign(EGg.v,{partenzaDa:t.partenzaDa,oreGuida:t.oreGuida,oreImpegno:t.oreImpegno});
+}
+function cambiaGiroGiornata(id){
+  leggiGiornata(); const s=S.servizi.find(x=>x.id===EGg.id);
+  EGg.giroId=id;
+  if(id===s.giroId){ EGg.tappa=s.giornoIndice; Object.assign(EGg.v,{partenzaDa:s.partenzaDa,oreGuida:s.oreGuida,oreImpegno:s.oreImpegno}); }
+  else { EGg.tappa=s.giornoIndice; caricaTappa(); }
+  disegnaGiornata();
+}
+function oreGiornata(k,v){ leggiGiornata(); const key=k==='G'?'oreGuida':'oreImpegno'; EGg.v[key]=EGg.v[key]===v?0:v; disegnaGiornata(); }
+function cambiaTappaGiornata(i){ leggiGiornata(); EGg.tappa=Number(i)||0; caricaTappa(); disegnaGiornata(); }
+function successiviDel(s){ return S.servizi.filter(x=>x.gruppo===s.gruppo && x.id!==s.id && x.giornoIndice>s.giornoIndice).sort((a,b)=>a.giornoIndice-b.giornoIndice); }
+/**
+ * Cosa cambia salvando: { rimuovi:[id], nuovi:[giornate] }.
+ * - stesso giro: modifica la giornata (ed eventualmente l'autista dei giorni successivi)
+ * - giro diverso: la giornata diventa il giorno scelto del nuovo giro; con "giorni successivi"
+ *   i giorni rimanenti del vecchio giro vengono sostituiti dai giorni rimanenti del nuovo.
+ */
+function pianoModifica(){
+  const s=S.servizi.find(x=>x.id===EGg.id), v=EGg.v;
+  const succ=successiviDel(s);
+  const cambioGiro=EGg.giroId!==s.giroId && !!giroDa(EGg.giroId);
+  const cambioAut=v.autistaId!==s.autistaId;
+  const resto=EGg.resto && succ.length>0 && (cambioGiro||cambioAut);
+  const rimuovi=[s.id], nuovi=[], nuoviViaggi={};
+  if(!cambioGiro){
+    nuovi.push(Object.assign({},s,{data:v.data,autistaId:v.autistaId,partenzaDa:v.partenzaDa,oreGuida:v.oreGuida,oreImpegno:v.oreImpegno}));
+    if(resto) succ.forEach(x=>{ rimuovi.push(x.id); nuovi.push(Object.assign({},x,{autistaId:v.autistaId})); });
+  } else {
+    const g=giroDa(EGg.giroId), gruppo=uid(), vecchio=S.viaggi[s.gruppo];
+    if(vecchio&&vecchio.rimorchio) nuoviViaggi[gruppo]={rimorchio:vecchio.rimorchio,orari:{},note:{},inviati:{}};
+    nuovi.push({ id:s.id, gruppo, autistaId:v.autistaId, giroId:g.id, giroNome:g.nome, data:v.data, giornoIndice:EGg.tappa, totGiorni:g.tappe.length,
+      partenzaDa:v.partenzaDa, oreGuida:v.oreGuida, oreImpegno:v.oreImpegno, stato:'pianificato' });
+    if(resto){
+      succ.forEach(x=>rimuovi.push(x.id));
+      for(let i=EGg.tappa+1;i<g.tappe.length;i++){ const t=g.tappe[i];
+        nuovi.push({ id:uid(), gruppo, autistaId:v.autistaId, giroId:g.id, giroNome:g.nome, data:piuGiorni(v.data,i-EGg.tappa), giornoIndice:i, totGiorni:g.tappe.length,
+          partenzaDa:t.partenzaDa, oreGuida:t.oreGuida, oreImpegno:t.oreImpegno, stato:'pianificato' }); }
+    }
+  }
+  return { rimuovi, nuovi, nuoviViaggi, cambioGiro, resto, succ };
+}
+function anteprimaGiornata(){
+  const v=EGg.v;
+  const a=autista(v.autistaId); if(!a) return {errori:[],avvisi:[]};
+  const p=pianoModifica();
+  return problemiCandidati(a,S.servizi,p.nuovi,p.rimuovi,0);
+}
+function disegnaGiornata(){
+  const s=S.servizi.find(x=>x.id===EGg.id); const v=EGg.v;
+  const succ=successiviDel(s);
+  const g=giroDa(EGg.giroId);
+  const cambioGiro=EGg.giroId!==s.giroId && !!g;
+  let h='<h3>'+esc(s.giroNome)+' · giorno '+(s.giornoIndice+1)+' di '+s.totGiorni+'</h3>';
+  const gm=giroDa(s.giroId), nm=gm&&gm.messaggi?gm.messaggi.length:0;
+  h+='<button class="btn full" style="margin-bottom:12px" onclick="apriMessaggi(\''+s.id+'\')">✉ Messaggi per l\'autista'+(nm?' ('+nm+')':'')+'</button>';
+  h+='<div class="fr2"><div class="f"><label for="egD">Data</label><input id="egD" type="date" value="'+esc(v.data)+'" onchange="leggiGiornata();disegnaGiornata()"></div>';
+  h+='<div class="f"><label for="egA">Autista</label><select id="egA" onchange="leggiGiornata();disegnaGiornata()">';
+  S.autisti.filter(a=>a.attivo||a.id===v.autistaId).sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(a=>h+='<option value="'+a.id+'"'+(a.id===v.autistaId?' selected':'')+'>'+esc(a.nome)+'</option>');
+  h+='</select></div></div>';
+  h+='<div class="fr2"><div class="f"><label for="egGi">Giro</label><select id="egGi" onchange="cambiaGiroGiornata(this.value)">';
+  if(!giroDa(s.giroId)) h+='<option value="'+esc(s.giroId||'')+'"'+(EGg.giroId===s.giroId?' selected':'')+'>'+esc(s.giroNome)+' (eliminato)</option>';
+  S.giri.slice().sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(x=>h+='<option value="'+x.id+'"'+(x.id===EGg.giroId?' selected':'')+'>'+esc(x.nome)+'</option>');
+  h+='</select></div>';
+  if(cambioGiro){
+    h+='<div class="f"><label for="egTp">Giorno del giro</label><select id="egTp" onchange="cambiaTappaGiornata(this.value)">';
+    g.tappe.forEach((t,i)=>h+='<option value="'+i+'"'+(i===EGg.tappa?' selected':'')+'>'+(i+1)+' di '+g.tappe.length+(t.partenzaDa?' · '+esc(t.partenzaDa):'')+'</option>');
+    h+='</select></div>';
+  }
+  h+='</div>';
+  if((v.autistaId!==s.autistaId||cambioGiro) && succ.length){
+    const txt=cambioGiro
+      ? 'Sostituisci anche i '+succ.length+' giorni successivi con il resto del nuovo giro'
+      : 'Cambia autista anche nei '+succ.length+' giorni successivi del giro';
+    h+='<label class="chk"><input type="checkbox" id="egR" '+(EGg.resto?'checked':'')+' onchange="leggiGiornata();disegnaGiornata()"> '+txt+'</label>';
+  }
+  h+='<div class="f"><label for="egP">Partenza della giornata</label><input id="egP" value="'+esc(v.partenzaDa)+'"></div>';
+  h+=pulsantiGuida(v.oreGuida,"oreGiornata('G'")+pulsantiImpegno(v.oreImpegno,"oreGiornata('M'");
+  const p=anteprimaGiornata();
+  h+='<div class="msgs">'+(p.errori.length||p.avvisi.length?p.errori.map(m=>'<div class="msg err">'+esc(m)+'</div>').join('')+p.avvisi.map(m=>'<div class="msg warn">'+esc(m)+'</div>').join(''):'<div class="msg" style="background:var(--okbg);color:var(--okt)">Nessun problema con queste ore.</div>')+'</div>';
+  h+='<div class="acts"><button class="btn dang" onclick="eliminaGiornata(false)">Togli giornata</button>'+(s.totGiorni>1?'<button class="btn dang" onclick="eliminaGiornata(true)">Togli tutto il giro</button>':'')+'</div>';
+  h+='<div class="acts" style="margin-top:8px"><button class="btn" onclick="chiudiModale()">Annulla</button><button class="btn pri" onclick="salvaGiornata()">Salva</button></div>';
+  apriModale(h);
+}
+function salvaGiornata(){
+  leggiGiornata();
+  const v=EGg.v;
+  const p=anteprimaGiornata();
+  if(p.errori.length && !confirm('Con questa modifica si superano i limiti:\n\n'+p.errori.join('\n')+'\n\nSalvare comunque?')) return;
+  const pm=pianoModifica();
+  const via=new Set(pm.rimuovi);
+  S.servizi=S.servizi.filter(x=>!via.has(x.id)).concat(pm.nuovi);
+  Object.assign(S.viaggi,pm.nuoviViaggi);
+  salva(); chiudiModale(); render(); toast('Giornata aggiornata');
+}
+function eliminaGiornata(tutto){
+  const s=S.servizi.find(x=>x.id===EGg.id);
+  if(!confirm(tutto?'Togliere tutte le giornate di questo giro assegnato?':'Togliere questa giornata?')) return;
+  S.servizi=S.servizi.filter(x=>tutto?x.gruppo!==s.gruppo:x.id!==s.id);
+  salva(); chiudiModale(); render(); toast(tutto?'Giro tolto':'Giornata tolta');
+}
+
+/* ---------- MESSAGGI DEL GIRO (solo testo per l'autista: nessun calcolo, l'invio non cambia nulla) ---------- */
+const GGL=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+function dataLunga(s){ const d=daISO(s); return GGL[giornoSett(s)]+' '+String(d.getUTCDate()).padStart(2,'0')+'.'+String(d.getUTCMonth()+1).padStart(2,'0')+'.'+d.getUTCFullYear(); }
+const RX_PER=/^[ \t]*per[ \t]+[^:\n]{1,40}:[ \t]*$/im;
+const RX_DATA=/^[ \t]*(?:(?:lun|mar|mer|gio|ven|sab|dom)[a-zàèéìòù]*[ \t,]+)?\d{1,2}[./-]\d{1,2}[./-]\d{2,4}[ \t]*$/im;
+const RX_RIM=/^([ \t]*rimorchio[ \t]*:)[ \t]*(.*)$/im;
+const RX_ORA=/(\b(?:ore|alle|le|dalle|h)[ \t]*)(\d{1,2})[:.](\d{2})(?![\d.])/gi;
+/* orari presenti nel testo (le righe con link vengono saltate) */
+function orariDi(t){ const r=[]; String(t).split('\n').forEach(l=>{ if(/https?:\/\//i.test(l)) return; let m; RX_ORA.lastIndex=0; while((m=RX_ORA.exec(l))){ if(Number(m[2])<24&&Number(m[3])<60) r.push(String(m[2]).padStart(2,'0')+':'+m[3]); } }); return r; }
+function rimorchioDi(t){ const m=String(t).match(RX_RIM); return m?m[2].trim():''; }
+function viaggio(gruppo){ return S.viaggi[gruppo]||(S.viaggi[gruppo]={rimorchio:'',orari:{},note:{},inviati:{}}); }
+/* costruisce il testo finale dal modello */
+function componiMessaggio(testo, o){
+  let t=String(testo).replace(/\r/g,'').trim();
+  const nome=(o.autista?o.autista.nome:'').trim().split(/\s+/)[0]||'';
+  // orari: sostituiti in ordine, riga per riga (righe con link escluse)
+  let k=0;
+  t=t.split('\n').map(l=>{ if(/https?:\/\//i.test(l)) return l; RX_ORA.lastIndex=0;
+    return l.replace(RX_ORA,(all,pre,h,m)=>{ if(Number(h)>=24||Number(m)>=60) return all; const nuovo=o.orari[k++]; return nuovo?pre+nuovo:all; }); }).join('\n');
+  // rimorchio
+  if(o.rimorchio){ if(RX_RIM.test(t)) t=t.replace(RX_RIM,(a,pre)=>pre+' '+o.rimorchio); else o._aggRim=true; }
+  // data
+  const dl=dataLunga(o.data);
+  if(RX_DATA.test(t)) t=t.replace(RX_DATA,dl); else t=dl+'\n'+t;
+  if(o._aggRim){ t=t.replace(dl, dl+'\nRimorchio: '+o.rimorchio); delete o._aggRim; }
+  // destinatario
+  if(nome){ if(RX_PER.test(t)) t=t.replace(RX_PER,'Per '+nome+':'); else t='Per '+nome+':\n'+t; }
+  // note del giorno
+  if(o.note&&o.note.trim()) t+='\n\n'+o.note.trim();
+  return t;
+}
+let EM=null;
+function apriMessaggi(servizioId){
+  const s=S.servizi.find(x=>x.id===servizioId); if(!s) return;
+  const g=giroDa(s.giroId);
+  let h='<h3>Messaggi · '+esc(s.giroNome)+'</h3>';
+  if(!g||!g.messaggi||!g.messaggi.length){
+    h+='<div class="empty">Per questo giro non ci sono messaggi salvati.<br>Aggiungili dalla scheda <b>Giri</b>, aprendo il giro.</div>';
+    h+='<div class="acts"><button class="btn" onclick="apriGiornata(\''+s.id+'\')">Indietro</button>'+(g?'<button class="btn pri" onclick="tab=\'giri\';render();apriGiro(\''+g.id+'\')">Apri il giro</button>':'')+'</div>';
+    apriModale(h); return;
+  }
+  const vg=S.viaggi[s.gruppo]||{inviati:{}};
+  h+='<div class="small muted" style="margin-bottom:8px">Scegli il messaggio da mandare. L\'invio non cambia niente nel calendario.</div><div class="sugg">';
+  g.messaggi.forEach(m=>{
+    const inv=vg.inviati&&vg.inviati[m.id];
+    const prima=m.testo.split('\n').map(x=>x.trim()).filter(x=>x && !RX_PER.test(x) && !RX_DATA.test(x))[0]||'';
+    h+='<div class="sg" onclick="scegliMessaggio(\''+s.id+'\',\''+m.id+'\')"><div class="grow"><div class="row"><b class="grow">'+esc(m.nome)+'</b>'+(inv?'<span class="chip ok">inviato '+esc(quandoInviato(inv))+'</span>':'')+'</div><div class="small muted">'+esc(prima)+'</div></div></div>';
+  });
+  h+='</div><div class="acts"><button class="btn" onclick="apriGiornata(\''+s.id+'\')">Indietro</button></div>';
+  apriModale(h);
+}
+function quandoInviato(iso){ const d=new Date(iso); if(isNaN(d)) return ''; const o=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); const g=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); return (g===oggi()?'oggi':'il '+dm(g))+' alle '+o; }
+function scegliMessaggio(servizioId,msgId){
+  const s=S.servizi.find(x=>x.id===servizioId); const g=giroDa(s.giroId); const m=g.messaggi.find(x=>x.id===msgId); if(!m) return;
+  const vg=S.viaggi[s.gruppo]||{rimorchio:'',orari:{},note:{}};
+  const base=orariDi(m.testo), salvati=(vg.orari&&vg.orari[msgId])||[];
+  EM={ servizioId, gruppo:s.gruppo, msgId, modello:m.testo, nome:m.nome, autistaId:s.autistaId, data:oggi(),
+       rimorchio:vg.rimorchio||rimorchioDi(m.testo), orari:base.map((x,i)=>salvati[i]||x), base, note:(vg.note&&vg.note[msgId])||'' };
+  disegnaMessaggio();
+}
+function testoMessaggio(){ return componiMessaggio(EM.modello,{ autista:autista(EM.autistaId), data:EM.data, rimorchio:EM.rimorchio.trim(), orari:EM.orari, note:EM.note }); }
+function leggiMessaggio(){
+  if(!$('emA')) return;
+  EM.autistaId=$('emA').value; EM.data=$('emD').value||EM.data; EM.rimorchio=$('emR').value; EM.note=$('emN').value;
+  EM.orari=EM.orari.map((x,i)=>$('emO'+i)?($('emO'+i).value||x):x);
+}
+function aggiornaMessaggio(){ leggiMessaggio(); const t=$('emTx'); if(t) t.value=testoMessaggio(); }
+function disegnaMessaggio(){
+  const a=autista(EM.autistaId);
+  let h='<h3>'+esc(EM.nome)+'</h3>';
+  h+='<div class="fr2"><div class="f"><label for="emA">Autista</label><select id="emA" onchange="aggiornaMessaggio()">';
+  S.autisti.filter(x=>x.attivo||x.id===EM.autistaId).sort((x,y)=>x.nome.localeCompare(y.nome)).forEach(x=>h+='<option value="'+x.id+'"'+(x.id===EM.autistaId?' selected':'')+'>'+esc(x.nome)+'</option>');
+  h+='</select></div><div class="f"><label for="emD">Data</label><input id="emD" type="date" value="'+esc(EM.data)+'" onchange="aggiornaMessaggio()"></div></div>';
+  h+='<div class="f"><label for="emR">Rimorchio (vale per tutto il viaggio)</label><input id="emR" value="'+esc(EM.rimorchio)+'" placeholder="es. XA150SY" autocapitalize="characters" oninput="aggiornaMessaggio()"></div>';
+  if(EM.orari.length){
+    h+='<div class="f"><label>Orari nel messaggio (solo per l\'autista)</label><div class="fr2">';
+    EM.orari.forEach((o,i)=>h+='<input id="emO'+i+'" type="time" value="'+esc(o)+'" aria-label="Orario '+(i+1)+'" onchange="aggiornaMessaggio()">');
+    h+='</div></div>';
+  }
+  h+='<div class="f"><label for="emN">Note (pallet, resi, buono pallet…)</label><textarea id="emN" style="min-height:70px" placeholder="es. Gli EPAL li puoi lasciare a Balistrieri." oninput="aggiornaMessaggio()">'+esc(EM.note)+'</textarea></div>';
+  h+='<div class="f"><label for="emTx">Messaggio finale</label><textarea id="emTx" style="min-height:220px">'+esc(testoMessaggio())+'</textarea><div class="small muted">Puoi correggerlo a mano qui, ma fallo per ultimo: se cambi i campi sopra, il testo si rigenera.</div></div>';
+  if(a && !a.telefono) h+='<div class="msg warn">'+esc(a.nome)+' non ha il telefono: WhatsApp ti chiederà a chi mandarlo.</div>';
+  h+='<div class="acts"><button class="btn" onclick="apriMessaggi(\''+EM.servizioId+'\')">Indietro</button><button class="btn" onclick="copiaMessaggio()">Copia</button><button class="btn pri" onclick="inviaMessaggio()">Invia su WhatsApp</button></div>';
+  apriModale(h);
+}
+function memorizzaMessaggio(inviato){
+  const vg=viaggio(EM.gruppo);
+  vg.rimorchio=EM.rimorchio.trim(); vg.orari[EM.msgId]=EM.orari.slice(); vg.note[EM.msgId]=EM.note;
+  if(inviato) vg.inviati[EM.msgId]=new Date().toISOString();
+  salva();
+}
+function inviaMessaggio(){
+  leggiMessaggio(); const testo=$('emTx').value; const a=autista(EM.autistaId);
+  memorizzaMessaggio(true);
+  window.open('https://wa.me/'+numeroWA(a?a.telefono:'')+'?text='+encodeURIComponent(testo),'_blank');
+  apriMessaggi(EM.servizioId);
+}
+async function copiaMessaggio(){
+  leggiMessaggio(); const testo=$('emTx').value;
+  try{ await navigator.clipboard.writeText(testo); memorizzaMessaggio(true); toast('Messaggio copiato'); apriMessaggi(EM.servizioId); }
+  catch(e){ const t=$('emTx'); if(t){ t.focus(); t.select(); } toast('Tieni premuto sul testo e copia'); }
+}
+
+/* ---------- INVIO PROGRAMMA (WhatsApp) ---------- */
+function condividi(id){
+  const a=autista(id);
+  const l=S.servizi.filter(s=>s.autistaId===id && lunediDi(s.data)===settimana).sort((x,y)=>x.data<y.data?-1:1);
+  let t='Programma settimana '+rangeSett(settimana)+' – '+a.nome+'\n';
+  for(let i=0;i<7;i++){
+    const d=piuGiorni(settimana,i); const q=l.filter(s=>s.data===d);
+    t+='\n'+gg(d)+' '+dm(d)+': '+(q.length?q.map(s=>s.giroNome+(s.totGiorni>1?' (g. '+(s.giornoIndice+1)+'/'+s.totGiorni+')':'')+(s.partenzaDa?', partenza '+s.partenzaDa:'')).join(' + '):'libero');
+  }
+  const num=numeroWA(a.telefono);
+  window.open('https://wa.me/'+num+'?text='+encodeURIComponent(t),'_blank');
+}
+
+/* numero per wa.me: solo cifre, prefisso 39 se manca (accetta +39, 0039, spazi, trattini) */
+function numeroWA(t){
+  let n=String(t||'').replace(/\D/g,'');
+  if(n.startsWith('00')) n=n.slice(2);
+  if(!n) return '';
+  if(n.length<=10) n='39'+n;
+  return n;
+}
+
+/* ---------- BACKUP ---------- */
+function testoBackup(){ return JSON.stringify({app:'gestione-flotta',versione:VERSIONE,creato:new Date().toISOString(),dati:S},null,1); }
+function segnaBackup(){ S.imp.ultimoBackup=new Date().toISOString(); salva(); render(); }
+async function esporta(){
+  const json=testoBackup();
+  const nome='flotta-backup-'+oggi()+'.json';
+  const blob=new Blob([json],{type:'application/json'});
+  try{
+    const f=new File([blob],nome,{type:'application/json'});
+    if(navigator.canShare && navigator.canShare({files:[f]})){
+      await navigator.share({files:[f],title:nome});
+      segnaBackup(); toast('Backup pronto'); return;     // segnato solo se la condivisione è andata a buon fine
+    }
+  }catch(e){ if(e && e.name==='AbortError'){ toast('Backup annullato'); return; } }
+  try{
+    const u=URL.createObjectURL(blob); const el=document.createElement('a'); el.href=u; el.download=nome; document.body.appendChild(el); el.click(); el.remove(); setTimeout(()=>URL.revokeObjectURL(u),4000);
+    segnaBackup(); toast('Backup salvato nei download');
+  }catch(e){ toast('Download non riuscito: usa "Copia come testo"'); }
+}
+async function copiaBackup(){
+  const txt=testoBackup();
+  try{ await navigator.clipboard.writeText(txt); segnaBackup(); toast('Backup copiato: incollalo su WhatsApp o in una mail'); }
+  catch(e){
+    apriModale('<h3>Copia il backup</h3><div class="small muted" style="margin-bottom:8px">Tieni premuto sul testo, seleziona tutto e copia.</div><textarea id="bkT" readonly>'+esc(txt)+'</textarea><div class="acts"><button class="btn" onclick="chiudiModale()">Chiudi</button><button class="btn pri" onclick="chiudiModale();segnaBackup()">Fatto, l\'ho copiato</button></div>');
+    const t=$('bkT'); if(t){ t.focus(); t.select(); }
+  }
+}
+function apriIncolla(){
+  apriModale('<h3>Ripristina incollando</h3><div class="small muted" style="margin-bottom:8px">Incolla qui il testo del backup. I dati attuali di questo dispositivo verranno sostituiti.</div><textarea id="inT" placeholder="{&quot;app&quot;:&quot;gestione-flotta&quot;…"></textarea><div class="acts"><button class="btn" onclick="chiudiModale()">Annulla</button><button class="btn pri" onclick="ripristinaTesto($(\'inT\').value)">Ripristina</button></div>');
+}
+function ripristinaTesto(txt){
+  let d;
+  try{ d=normalizza(JSON.parse(String(txt||'').trim())); }catch(e){ toast('Il testo non è un backup valido'); return; }
+  if(!d.autisti.length && !d.giri.length && !d.servizi.length){ toast('Il backup è vuoto o non è di Gestione Flotta'); return; }
+  if(!confirm('Ripristinare il backup? Contiene '+d.autisti.length+' autisti, '+d.giri.length+' giri e '+d.servizi.length+' giornate. I dati attuali verranno sostituiti.')) return;
+  d.imp.margine = typeof d.imp.margine==='number' ? d.imp.margine : S.imp.margine;
+  S=d; salva(); chiudiModale(); render(); toast('Backup ripristinato');
+}
+function importa(inp){
+  const f=inp.files&&inp.files[0]; inp.value=''; if(!f) return;   // azzerato subito: si può riscegliere lo stesso file
+  const r=new FileReader();
+  r.onload=()=>ripristinaTesto(r.result);
+  r.onerror=()=>toast('File non leggibile');
+  r.readAsText(f);
+}
+function cancellaTutto(){
+  if(!confirm('Cancellare TUTTI i dati (autisti, giri, giornate)? Non si può annullare.')) return;
+  if(!confirm('Sicuro? Fai prima un backup se ti serve.')) return;
+  S={ v:4, salvato:0, autisti:[], giri:[], servizi:[], viaggi:{}, imp:{ margine:S.imp.margine, ultimoBackup:null } }; salva(); render(); toast('Dati cancellati');
+}
+
+/* ---------- INSTALLAZIONE (icone e manifest dentro il file) ---------- */
+function icona(px){
+  const c=document.createElement('canvas'); c.width=c.height=px; const x=c.getContext('2d'); const k=px/512;
+  x.fillStyle='#0B6E4F'; x.fillRect(0,0,px,px);
+  x.fillStyle='#FFFFFF';
+  const rr=(X,Y,W,H,Rr)=>{ x.beginPath(); x.moveTo(X+Rr,Y); x.arcTo(X+W,Y,X+W,Y+H,Rr); x.arcTo(X+W,Y+H,X,Y+H,Rr); x.arcTo(X,Y+H,X,Y,Rr); x.arcTo(X,Y,X+W,Y,Rr); x.fill(); };
+  rr(96*k,150*k,200*k,170*k,14*k);           // cassone
+  rr(306*k,205*k,110*k,115*k,14*k);          // cabina
+  x.fillStyle='#0B6E4F'; rr(322*k,220*k,62*k,44*k,8*k); // finestrino
+  [[150,336],[360,336]].forEach(p=>{ x.fillStyle='#FFFFFF'; x.beginPath(); x.arc(p[0]*k,p[1]*k,34*k,0,7); x.fill(); x.fillStyle='#0B6E4F'; x.beginPath(); x.arc(p[0]*k,p[1]*k,13*k,0,7); x.fill(); });
+  return c.toDataURL('image/png');
+}
+function preparaInstallazione(){
+  try{
+    const i192=icona(192), i512=icona(512);
+    $('ico').href=i192; $('aico').href=i192;
+    const base=location.href.split('#')[0].split('?')[0];
+    const scope=base.replace(/[^/]*$/,'');
+    const m={ name:'Gestione Flotta', short_name:'Flotta', description:'Pianificazione giri e autisti secondo il Reg. CE 561/2006', lang:'it',
+      start_url:base, scope:scope, display:'standalone', orientation:'any', background_color:'#EEF1EE', theme_color:'#0B6E4F',
+      icons:[{src:i192,sizes:'192x192',type:'image/png',purpose:'any'},{src:i512,sizes:'512x512',type:'image/png',purpose:'any'},{src:i512,sizes:'512x512',type:'image/png',purpose:'maskable'}] };
+    $('mf').href='data:application/manifest+json;charset=utf-8,'+encodeURIComponent(JSON.stringify(m));
+  }catch(e){}
+  // sw.js facoltativo: se è caricato accanto a index.html, l'app si apre anche senza rete
+  if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
+    fetch('sw.js',{method:'HEAD'}).then(r=>{ if(r.ok) navigator.serviceWorker.register('sw.js').catch(()=>{}); }).catch(()=>{});
+  }
+}
+
+let eventoInstalla=null;
+window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); eventoInstalla=e; if(tab==='altro') render(); });
+window.addEventListener('appinstalled',()=>{ eventoInstalla=null; if(tab==='altro') render(); toast('App installata'); });
+async function installa(){ if(!eventoInstalla) return; eventoInstalla.prompt(); try{ await eventoInstalla.userChoice; }catch(e){} eventoInstalla=null; render(); }
+
+/* ---------- AVVIO ---------- */
+document.querySelectorAll('nav.bottom button').forEach(b=>b.addEventListener('click',()=>{ tab=b.dataset.tab; chiudiModale(); render(); window.scrollTo(0,0); }));
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') chiudiModale(); });
+preparaInstallazione();
+carica().then(render);
+</script>
+</body>
+</html>
