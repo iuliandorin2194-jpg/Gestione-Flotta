@@ -1,9 +1,11 @@
 <!doctype html>
 <!--
-  GESTIONE FLOTTA — versione 2.4
+  GESTIONE FLOTTA — versione 2.5
   Pianificazione giri e autisti su ore STIMATE, controlli Reg. CE 561/2006.
 
   CHANGELOG
+  2.5  Nuovi colori: blu notte al posto del verde, sfondi grigio-azzurri. Verde/giallo/rosso dei controlli invariati.
+       Nessuna modifica ai dati.
   2.4  Le finestre non tornano più in cima a ogni tocco (ore 9/10 e 13/15, Togli, cambio autista o giro):
        restano dove sei. "+ Aggiungi giornata" e "+ Aggiungi messaggio" scendono sul nuovo elemento.
        Nessuna modifica ai dati.
@@ -31,7 +33,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0B6E4F">
+<meta name="theme-color" content="#1E3A5F">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Gestione Flotta</title>
@@ -40,24 +42,25 @@
 <link rel="apple-touch-icon" id="aico">
 <style>
 :root{
-  --bg:#EEF1EE; --card:#FFFFFF; --card2:#F5F7F5; --line:#D6DDD8; --text:#17201B; --muted:#5E6B63;
-  --acc:#0B6E4F; --acc2:#08573E; --acct:#FFFFFF;
+  --bg:#F1F4F8; --card:#FFFFFF; --card2:#F6F8FB; --line:#D9E0E8; --text:#16202C; --muted:#5B6777;
+  --acc:#1E3A5F; --acc2:#162C48; --acct:#FFFFFF;
   --ok:#1F7A4C; --okbg:#DDF1E5; --okt:#145534;
   --warn:#A86A06; --warnbg:#FCEFCF; --warnt:#6B4404;
   --err:#B3261E; --errbg:#F9DEDC; --errt:#7A1712;
-  --vuoto:#E3E8E4;
+  --vuoto:#E4E9EF;
   --r:12px;
   --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
 }
 @media (prefers-color-scheme: dark){
   :root{
-    --bg:#101513; --card:#1A211D; --card2:#212A25; --line:#33403A; --text:#E8EEEA; --muted:#9AA8A0;
-    --acc:#2FB383; --acc2:#5CCBA0; --acct:#06281C;
+    --bg:#0F141B; --card:#18202A; --card2:#1F2833; --line:#323E4C; --text:#E6ECF2; --muted:#9AA7B6;
+    --acc:#6EA8E6; --acc2:#9CC4EE; --acct:#0B1A2C;
     --ok:#4CC38A; --okbg:rgba(76,195,138,.16); --okt:#9BE5BF;
     --warn:#F0B13A; --warnbg:rgba(240,177,58,.16); --warnt:#F7D38A;
     --err:#F2726B; --errbg:rgba(242,114,107,.16); --errt:#FFB4AE;
-    --vuoto:#26302B;
+    --vuoto:#242E3A;
   }
+  html body header.top{background:#1B2B40;color:#E6ECF2}
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -338,7 +341,7 @@ function problemiCandidati(autista, lista, candidati, escludi, margine){
 /* =====================================================================
    APP
    ===================================================================== */
-const VERSIONE = '2.4';
+const VERSIONE = '2.5';
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -1049,13 +1052,13 @@ function cancellaTutto(){
 /* ---------- INSTALLAZIONE (icone e manifest dentro il file) ---------- */
 function icona(px){
   const c=document.createElement('canvas'); c.width=c.height=px; const x=c.getContext('2d'); const k=px/512;
-  x.fillStyle='#0B6E4F'; x.fillRect(0,0,px,px);
+  x.fillStyle='#1E3A5F'; x.fillRect(0,0,px,px);
   x.fillStyle='#FFFFFF';
   const rr=(X,Y,W,H,Rr)=>{ x.beginPath(); x.moveTo(X+Rr,Y); x.arcTo(X+W,Y,X+W,Y+H,Rr); x.arcTo(X+W,Y+H,X,Y+H,Rr); x.arcTo(X,Y+H,X,Y,Rr); x.arcTo(X,Y,X+W,Y,Rr); x.fill(); };
   rr(96*k,150*k,200*k,170*k,14*k);           // cassone
   rr(306*k,205*k,110*k,115*k,14*k);          // cabina
-  x.fillStyle='#0B6E4F'; rr(322*k,220*k,62*k,44*k,8*k); // finestrino
-  [[150,336],[360,336]].forEach(p=>{ x.fillStyle='#FFFFFF'; x.beginPath(); x.arc(p[0]*k,p[1]*k,34*k,0,7); x.fill(); x.fillStyle='#0B6E4F'; x.beginPath(); x.arc(p[0]*k,p[1]*k,13*k,0,7); x.fill(); });
+  x.fillStyle='#1E3A5F'; rr(322*k,220*k,62*k,44*k,8*k); // finestrino
+  [[150,336],[360,336]].forEach(p=>{ x.fillStyle='#FFFFFF'; x.beginPath(); x.arc(p[0]*k,p[1]*k,34*k,0,7); x.fill(); x.fillStyle='#1E3A5F'; x.beginPath(); x.arc(p[0]*k,p[1]*k,13*k,0,7); x.fill(); });
   return c.toDataURL('image/png');
 }
 function preparaInstallazione(){
@@ -1065,7 +1068,7 @@ function preparaInstallazione(){
     const base=location.href.split('#')[0].split('?')[0];
     const scope=base.replace(/[^/]*$/,'');
     const m={ name:'Gestione Flotta', short_name:'Flotta', description:'Pianificazione giri e autisti secondo il Reg. CE 561/2006', lang:'it',
-      start_url:base, scope:scope, display:'standalone', orientation:'any', background_color:'#EEF1EE', theme_color:'#0B6E4F',
+      start_url:base, scope:scope, display:'standalone', orientation:'any', background_color:'#F1F4F8', theme_color:'#1E3A5F',
       icons:[{src:i192,sizes:'192x192',type:'image/png',purpose:'any'},{src:i512,sizes:'512x512',type:'image/png',purpose:'any'},{src:i512,sizes:'512x512',type:'image/png',purpose:'maskable'}] };
     $('mf').href='data:application/manifest+json;charset=utf-8,'+encodeURIComponent(JSON.stringify(m));
   }catch(e){}
