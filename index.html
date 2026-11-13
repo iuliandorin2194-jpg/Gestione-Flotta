@@ -1,9 +1,12 @@
 <!doctype html>
 <!--
-  GESTIONE FLOTTA — versione 2.3
+  GESTIONE FLOTTA — versione 2.4
   Pianificazione giri e autisti su ore STIMATE, controlli Reg. CE 561/2006.
 
   CHANGELOG
+  2.4  Le finestre non tornano più in cima a ogni tocco (ore 9/10 e 13/15, Togli, cambio autista o giro):
+       restano dove sei. "+ Aggiungi giornata" e "+ Aggiungi messaggio" scendono sul nuovo elemento.
+       Nessuna modifica ai dati.
   2.3  Messaggi per l'autista: ogni giro ha i suoi modelli (Messaggio 1, 2, 3…), separati dalle giornate.
        Dalla giornata: scegli il messaggio, l'app mette nome autista, data, rimorchio (uno per viaggio),
        orari modificabili e note libere; anteprima correggibile, invio WhatsApp o copia.
@@ -335,7 +338,7 @@ function problemiCandidati(autista, lista, candidati, escludi, margine){
 /* =====================================================================
    APP
    ===================================================================== */
-const VERSIONE = '2.3';
+const VERSIONE = '2.4';
 const $ = id => document.getElementById(id);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
@@ -425,7 +428,17 @@ function normalizza(d){
 
 /* ---------- UTILITÀ UI ---------- */
 function toast(t){ const el=document.createElement('div'); el.className='toast'; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2600); }
-function apriModale(html){ chiudiModale(); const ov=document.createElement('div'); ov.className='ov'; ov.id='ov'; ov.innerHTML='<div class="modal" role="dialog" aria-modal="true">'+html+'</div>'; ov.addEventListener('click',e=>{ if(e.target===ov) chiudiModale(); }); document.body.appendChild(ov); }
+/* chiave: se la finestra aperta ha la stessa chiave viene solo ridisegnata, restando nella stessa posizione */
+function apriModale(html, chiave){
+  const vecchio=$('ov');
+  if(chiave && vecchio && vecchio.dataset.k===chiave){
+    const m=vecchio.querySelector('.modal'), y=m.scrollTop;
+    m.innerHTML=html; m.scrollTop=y; return;
+  }
+  chiudiModale(); const ov=document.createElement('div'); if(chiave) ov.dataset.k=chiave; ov.className='ov'; ov.id='ov'; ov.innerHTML='<div class="modal" role="dialog" aria-modal="true">'+html+'</div>'; ov.addEventListener('click',e=>{ if(e.target===ov) chiudiModale(); }); document.body.appendChild(ov);
+}
+/* porta in vista un elemento appena aggiunto nella finestra */
+function mostraInModale(id){ const el=$(id); if(el && el.scrollIntoView) el.scrollIntoView({block:'center',behavior:'smooth'}); }
 function chiudiModale(){ const o=$('ov'); if(o) o.remove(); }
 function autista(id){ return S.autisti.find(a=>a.id===id); }
 function attivi(){ return S.autisti.filter(a=>a.attivo).sort((a,b)=>a.nome.localeCompare(b.nome)); }
@@ -592,7 +605,7 @@ function apriGiro(id){
   const g=id?S.giri.find(x=>x.id===id):null;
   EGiro=g?JSON.parse(JSON.stringify(g)):{id:null,nome:'',note:'',messaggi:[],tappe:[{partenzaDa:'',oreGuida:0,oreImpegno:0}]};
   if(!Array.isArray(EGiro.messaggi)) EGiro.messaggi=[];
-  disegnaGiro();
+  chiudiModale(); disegnaGiro();
 }
 function leggiGiro(){
   if(!$('giN')) return;
@@ -605,7 +618,7 @@ function disegnaGiro(){
   h+='<div class="f"><label for="giN">Nome del giro</label><input id="giN" placeholder="es. Sicilia" value="'+esc(EGiro.nome)+'"></div>';
   h+='<div class="small muted" style="margin-bottom:8px">Per ogni giornata tocca le ore di guida e di impegno previste. Se non le sai, lasciale vuote: il giro si salva lo stesso.</div>';
   EGiro.tappe.forEach((t,i)=>{
-    h+='<div class="tappa"><div class="t"><span class="grow">Giorno '+(i+1)+'</span>'+(EGiro.tappe.length>1?'<button class="btn sm" onclick="togliTappa('+i+')" aria-label="Togli giorno">Togli</button>':'')+'</div>';
+    h+='<div class="tappa" id="tpB'+i+'"><div class="t"><span class="grow">Giorno '+(i+1)+'</span>'+(EGiro.tappe.length>1?'<button class="btn sm" onclick="togliTappa('+i+')" aria-label="Togli giorno">Togli</button>':'')+'</div>';
     h+='<div class="f"><label for="tP'+i+'">Partenza della giornata</label><input id="tP'+i+'" placeholder="es. Pescara" value="'+esc(t.partenzaDa)+'"></div>';
     h+=pulsantiGuida(t.oreGuida,"oreTappa('G',"+i)+pulsantiImpegno(t.oreImpegno,"oreTappa('M',"+i)+'</div>';
   });
@@ -614,17 +627,17 @@ function disegnaGiro(){
   h+='<h2 class="sec" style="margin-top:14px">Messaggi per l\'autista</h2>';
   h+='<div class="small muted" style="margin-bottom:8px">Incolla la parte fissa di ogni messaggio (titolo, cliente, luoghi, link). Nome dell\'autista, data, rimorchio e orari li sistemi quando lo mandi. Le note su pallet e resi le scrivi al momento.</div>';
   EGiro.messaggi.forEach((m,i)=>{
-    h+='<div class="tappa"><div class="t"><input id="mN'+i+'" value="'+esc(m.nome)+'" placeholder="Messaggio '+(i+1)+'" style="flex:1;font-weight:700"><button class="btn sm" style="margin-left:8px" onclick="togliMessaggio('+i+')">Togli</button></div>';
+    h+='<div class="tappa" id="msB'+i+'"><div class="t"><input id="mN'+i+'" value="'+esc(m.nome)+'" placeholder="Messaggio '+(i+1)+'" style="flex:1;font-weight:700"><button class="btn sm" style="margin-left:8px" onclick="togliMessaggio('+i+')">Togli</button></div>';
     h+='<textarea id="mT'+i+'" placeholder="Incolla qui il messaggio">'+esc(m.testo)+'</textarea></div>';
   });
   h+='<button class="btn full" onclick="aggiungiMessaggio()">+ Aggiungi messaggio</button>';
   h+='<div id="giroPb"></div>';
   h+='<div class="acts">'+(EGiro.id?'<button class="btn dang" onclick="eliminaGiro()">Elimina</button>':'')+'<button class="btn" onclick="chiudiModale()">Annulla</button><button class="btn pri" onclick="salvaGiro()">Salva giro</button></div>';
-  apriModale(h);
+  apriModale(h,'giro');
 }
 function oreTappa(k,i,v){ leggiGiro(); const t=EGiro.tappe[i], key=k==='G'?'oreGuida':'oreImpegno'; t[key]=t[key]===v?0:v; disegnaGiro(); }
-function aggiungiTappa(){ leggiGiro(); EGiro.tappe.push({partenzaDa:'',oreGuida:0,oreImpegno:0}); disegnaGiro(); }
-function aggiungiMessaggio(){ leggiGiro(); EGiro.messaggi.push({id:uid(),nome:'Messaggio '+(EGiro.messaggi.length+1),testo:''}); disegnaGiro(); }
+function aggiungiTappa(){ leggiGiro(); EGiro.tappe.push({partenzaDa:'',oreGuida:0,oreImpegno:0}); disegnaGiro(); mostraInModale('tpB'+(EGiro.tappe.length-1)); }
+function aggiungiMessaggio(){ leggiGiro(); EGiro.messaggi.push({id:uid(),nome:'Messaggio '+(EGiro.messaggi.length+1),testo:''}); disegnaGiro(); mostraInModale('msB'+(EGiro.messaggi.length-1)); }
 function togliMessaggio(i){ leggiGiro(); if(EGiro.messaggi[i].testo.trim() && !confirm('Togliere "'+EGiro.messaggi[i].nome+'"?')) return; EGiro.messaggi.splice(i,1); disegnaGiro(); }
 function togliTappa(i){ leggiGiro(); EGiro.tappe.splice(i,1); disegnaGiro(); }
 function salvaGiro(){
@@ -684,7 +697,7 @@ function apriAssegna(data, autistaId){
   if(!attivi().length){ toast('Aggiungi prima un autista'); tab='autisti'; render(); return; }
   const giri=S.giri.slice().sort((a,b)=>a.nome.localeCompare(b.nome));
   EAs={ giroId:giri[0].id, data:data||(settimana===lunediDi(oggi())?oggi():settimana), autistaId:autistaId||null };
-  disegnaAssegna();
+  chiudiModale(); disegnaAssegna();
 }
 function candidatiPer(g, data, aId){
   return g.tappe.map((t,i)=>({ id:'tmp'+i, gruppo:'tmp', autistaId:aId, giroId:g.id, giroNome:g.nome, data:piuGiorni(data,i), giornoIndice:i, totGiorni:g.tappe.length, partenzaDa:t.partenzaDa, oreGuida:t.oreGuida, oreImpegno:t.oreImpegno, stato:'pianificato' }));
@@ -726,7 +739,7 @@ function disegnaAssegna(){
     h+='<div class="msgs">'+sel.p.errori.map(m=>'<div class="msg err">'+esc(m)+'</div>').join('')+sel.p.avvisi.map(m=>'<div class="msg warn">'+esc(m)+'</div>').join('')+'</div>';
   }
   h+='<div class="acts"><button class="btn" onclick="chiudiModale()">Annulla</button><button class="btn '+(sel&&sel.p.errori.length?'dang':'pri')+'" onclick="confermaAssegna()">Assegna a '+esc(sel?sel.a.nome.split(' ')[0]:'')+'</button></div>';
-  apriModale(h);
+  apriModale(h,'assegna');
 }
 function confermaAssegna(){
   const g=S.giri.find(x=>x.id===EAs.giroId); const a=autista(EAs.autistaId); if(!g||!a) return;
@@ -744,7 +757,7 @@ function giroDa(id){ return S.giri.find(g=>g.id===id)||null; }
 function apriGiornata(id){
   const s=S.servizi.find(x=>x.id===id); if(!s) return;
   EGg={ id:s.id, v:Object.assign({},s), resto:true, giroId:s.giroId, tappa:s.giornoIndice };
-  disegnaGiornata();
+  chiudiModale(); disegnaGiornata();
 }
 function leggiGiornata(){
   if(!$('egD')) return;
@@ -837,7 +850,7 @@ function disegnaGiornata(){
   h+='<div class="msgs">'+(p.errori.length||p.avvisi.length?p.errori.map(m=>'<div class="msg err">'+esc(m)+'</div>').join('')+p.avvisi.map(m=>'<div class="msg warn">'+esc(m)+'</div>').join(''):'<div class="msg" style="background:var(--okbg);color:var(--okt)">Nessun problema con queste ore.</div>')+'</div>';
   h+='<div class="acts"><button class="btn dang" onclick="eliminaGiornata(false)">Togli giornata</button>'+(s.totGiorni>1?'<button class="btn dang" onclick="eliminaGiornata(true)">Togli tutto il giro</button>':'')+'</div>';
   h+='<div class="acts" style="margin-top:8px"><button class="btn" onclick="chiudiModale()">Annulla</button><button class="btn pri" onclick="salvaGiornata()">Salva</button></div>';
-  apriModale(h);
+  apriModale(h,'giornata:'+EGg.id);
 }
 function salvaGiornata(){
   leggiGiornata();
